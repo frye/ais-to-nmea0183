@@ -34,6 +34,51 @@ namespace AisToN2K.Models
         [JsonProperty("call_sign")]
         public string? CallSign { get; set; }
         
+        // Additional AIS fields that were missing from broadcast data
+        
+        /// <summary>
+        /// Rate of Turn (ROT) in degrees per minute.
+        /// Range: -128 to +127 degrees/minute, with special encoding.
+        /// Positive values indicate starboard (right) turn, negative values indicate port (left) turn.
+        /// Special values: -128 = turning left at more than 5°/30s, +127 = turning right at more than 5°/30s,
+        /// 128 (0x80) = no turn information available.
+        /// </summary>
+        [JsonProperty("rate_of_turn")]
+        public int? RateOfTurn { get; set; }
+        
+        /// <summary>
+        /// Navigational Status indicating the vessel's current operational state.
+        /// 0=under way using engine, 1=at anchor, 2=not under command, 3=restricted manoeuvrability,
+        /// 4=constrained by her draught, 5=moored, 6=aground, 7=engaged in fishing,
+        /// 8=under way sailing, 9-14=reserved, 15=not defined.
+        /// </summary>
+        [JsonProperty("navigational_status")]
+        public int? NavigationalStatus { get; set; }
+        
+        /// <summary>
+        /// Position Accuracy flag. True = high accuracy (&lt;10m), False = low accuracy (&gt;10m).
+        /// Indicates the accuracy of the GNSS position fix.
+        /// </summary>
+        [JsonProperty("position_accuracy")]
+        public bool? PositionAccuracy { get; set; }
+        
+        /// <summary>
+        /// RAIM (Receiver Autonomous Integrity Monitoring) flag.
+        /// True = RAIM in use for this position, False = RAIM not in use.
+        /// Indicates GPS/GNSS integrity monitoring status.
+        /// </summary>
+        [JsonProperty("raim")]
+        public bool? Raim { get; set; }
+        
+        /// <summary>
+        /// AIS timestamp in seconds (0-59) indicating when the position was obtained.
+        /// 60 = not available, 61 = positioning system is in manual input mode,
+        /// 62 = electronic position fixing system operates in estimated mode,
+        /// 63 = position of vessel is not available.
+        /// </summary>
+        [JsonProperty("timestamp_seconds")]
+        public int? TimestampSeconds { get; set; }
+        
         // AIS message type (1=Position Report, 4=Base Station Report, 5=Static and Voyage Data, etc.)
         public int MessageType { get; set; } = 1; // Default to Position Report
     }
@@ -128,6 +173,25 @@ namespace AisToN2K.Models
         
         [JsonProperty("Timestamp")]
         public int? Timestamp { get; set; }
+        
+        /// <summary>
+        /// Rate of Turn in degrees per minute (-128 to +127).
+        /// Special encoding for extreme turn rates and "not available" status.
+        /// </summary>
+        [JsonProperty("RateOfTurn")]
+        public int? RateOfTurn { get; set; }
+        
+        /// <summary>
+        /// Position accuracy flag. True = high accuracy (&lt;10m), False = low accuracy (&gt;10m).
+        /// </summary>
+        [JsonProperty("PositionAccuracy")]
+        public bool? PositionAccuracy { get; set; }
+        
+        /// <summary>
+        /// RAIM (Receiver Autonomous Integrity Monitoring) flag.
+        /// </summary>
+        [JsonProperty("RAIM")]
+        public bool? RAIM { get; set; }
     }
 
     public class AisShipAndVoyageData
@@ -170,6 +234,18 @@ namespace AisToN2K.Models
         
         [JsonProperty("Timestamp")]
         public int? Timestamp { get; set; }
+        
+        /// <summary>
+        /// Position accuracy flag for Class B transponders.
+        /// </summary>
+        [JsonProperty("PositionAccuracy")]
+        public bool? PositionAccuracy { get; set; }
+        
+        /// <summary>
+        /// RAIM flag for Class B transponders.
+        /// </summary>
+        [JsonProperty("RAIM")]
+        public bool? RAIM { get; set; }
     }
 
     public class AisShipStaticData
