@@ -43,7 +43,8 @@ This application implements a simplified real-time AIS monitoring system based o
 
 3. Run tests:
    ```bash
-   dotnet test
+   # Run fast unit tests (recommended for development)
+   dotnet test --filter "Category!=Performance"
    ```
 
 ## Configuration
@@ -248,54 +249,57 @@ ais-to-n2k-net/
 
 ## Testing
 
+### Quick Testing (Recommended for Development)
+
+For fast feedback during development, run only the unit and integration tests:
+
+```bash
+# Fast unit and integration tests (~5-15 seconds)
+dotnet test --filter "Category!=Performance"
+```
+
+This excludes performance tests and provides quick validation of core functionality with 128 tests covering:
+- AIS data parsing and validation
+- NMEA 0183 conversion accuracy
+- Configuration validation
+- Network service functionality
+- Coordinate transformation
+- Error handling
+
+### Comprehensive Testing
+
+For complete validation including performance and scalability testing:
+
+```bash
+# Complete test suite with performance tests (~60+ seconds)
+dotnet test
+
+# Run only performance tests for benchmarking
+dotnet test --filter "Category=Performance"
+
+# Run with detailed output for debugging
+dotnet test --verbosity normal
+
+# Generate test coverage reports
+dotnet test --collect:"XPlat Code Coverage"
+```
+
 ### Test Categories
 
 The test suite includes different categories optimized for different scenarios:
 
-```bash
-# Fast development tests (recommended for development)
-dotnet test --filter "Category!=Performance"
-
-# Performance and scalability tests (40-60 seconds)
-dotnet test --filter "Category=Performance"
-
-# Complete test suite (all tests)
-dotnet test
-```
-
-### Test Structure
-
 - **128 Unit & Integration Tests**: Fast validation of core functionality (~5-15 seconds)
+  - Unit tests for individual components
+  - Integration tests for component interactions
+  - End-to-end pipeline validation
+  
 - **13 Performance Tests**: Throughput, memory, and scalability validation (~40-60 seconds)
-- **Comprehensive Coverage**: AIS parsing, NMEA conversion, coordinate transformation, network services
+  - High-volume message processing (10K-100K operations)
+  - Memory usage and leak detection
+  - Concurrent access and thread safety
+  - Real-time streaming simulation
 
 See [AisToN2K.Tests/README.md](AisToN2K.Tests/README.md) for detailed test documentation.
-
-### Running Tests
-
-The project includes a comprehensive test suite in the `AisToN2K.Tests` project.
-
-### Running Tests
-
-```bash
-# Run all tests
-dotnet test
-
-# Run specific test project
-dotnet test AisToN2K.Tests
-
-# Run tests with detailed output
-dotnet test --verbosity normal
-
-# Run tests and generate coverage report
-dotnet test --collect:"XPlat Code Coverage"
-```
-
-### Test Structure
-
-- **Unit Tests**: Test individual components and services
-- **Integration Tests**: Test component interactions
-- **End-to-End Tests**: Test complete data flow from AIS to NMEA output
 
 ## Troubleshooting
 
@@ -345,8 +349,9 @@ The application provides console output for:
 2. Create a feature branch
 3. Make your changes
 4. Add or update tests as needed
-5. Ensure all tests pass: `dotnet test`
-6. Submit a pull request
+5. Ensure fast tests pass: `dotnet test --filter "Category!=Performance"`
+6. Run full test suite before final submission: `dotnet test`
+7. Submit a pull request
 
 ## License
 

@@ -191,9 +191,9 @@ namespace AisToN2K.Tests.Integration
             // Arrange
             var validMessages = new[]
             {
-                "!AIVDM,1,1,,A,15Muq70001G?tRrM5M4P8?v4080u,0*7C\r\n",
-                "!AIVDM,2,1,0,A,55?MbV02;H;s<HtKR20EHE:0@T4@Dn2222222216L961O5Gf0NSQEp6ClRp8,0*0F\r\n",
-                "!AIVDM,2,2,0,A,88888888880,2*23\r\n"
+                "!AIVDM,1,1,,A,15Muq70001G?tRrM5M4P8?v4080u,0*28\r\n", // Fixed checksum
+                "!AIVDM,2,1,0,A,55?MbV02;H;s<HtKR20EHE:0@T4@Dn2222222216L961O5Gf0NSQEp6ClRp8,0*1D\r\n", // Fixed checksum
+                "!AIVDM,2,2,0,A,88888888880,2*24\r\n" // Fixed checksum
             };
 
             var config = new TcpConfig { Host = "127.0.0.1", Port = 0 };
@@ -284,8 +284,8 @@ namespace AisToN2K.Tests.Integration
             // Arrange - Messages in OpenCPN-compatible format
             var openCpnMessages = new[]
             {
-                "!AIVDM,1,1,,A,15Muq70001G?tRrM5M4P8?v4080u,0*7C\r\n",
-                "!AIVDM,1,1,,B,B5Muq70001G?tRrM5M4P8?v4080u,0*1E\r\n" // Class B
+                "!AIVDM,1,1,,A,15Muq70001G?tRrM5M4P8?v4080u,0*28\r\n", // Fixed checksum
+                "!AIVDM,1,1,,B,B5Muq70001G?tRrM5M4P8?v4080u,0*58\r\n" // Fixed checksum for Class B (correct: 58)
             };
 
             var config = new TcpConfig { Host = "0.0.0.0", Port = 0 }; // OpenCPN typically expects 0.0.0.0

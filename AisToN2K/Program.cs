@@ -92,10 +92,13 @@ namespace AisToN2K
         {
             try
             {
+                // Use the directory where the executable is located, not the current working directory
+                var basePath = AppContext.BaseDirectory;
+                
                 var configBuilder = new ConfigurationBuilder()
-                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .SetBasePath(basePath)
                     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                    .AddUserSecrets<Program>()
+                    .AddUserSecrets("ais-to-n2k-secrets")
                     .AddEnvironmentVariables();
 
                 var configuration = configBuilder.Build();
@@ -109,12 +112,12 @@ namespace AisToN2K
                 if (string.IsNullOrEmpty(_config.ApiKey))
                 {
                     Console.WriteLine("❌ API key not found. Please set it using:");
-                    Console.WriteLine("   dotnet user-secrets set \"ApiKey\" \"your-api-key-here\"");
+                    Console.WriteLine("   dotnet user-secrets set \"AisApi:ApiKey\" \"your-api-key-here\"");
                     Console.WriteLine("   OR set the AIS_API_KEY environment variable");
                     return false;
                 }
 
-                Console.WriteLine($"✅ Configuration loaded");
+                Console.WriteLine($"✅ Configuration loaded from: {basePath}");
                 Console.WriteLine($"📡 WebSocket URL: {_config.WebSocketUrl}");
                 Console.WriteLine($"🌐 Bounding Box: N:{_config.BoundingBox.North}, S:{_config.BoundingBox.South}, E:{_config.BoundingBox.East}, W:{_config.BoundingBox.West}");
                 Console.WriteLine($"🔌 TCP Server: {(_config.Network.EnableTcp ? $"Enabled on {_config.Network.Tcp.Host}:{_config.Network.Tcp.Port}" : "Disabled")}");
