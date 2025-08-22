@@ -4,6 +4,8 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AisToN2K", "AisToN2K\AisToN2K.csproj", "{EF6ACF1B-F4AA-39F2-73FE-A49DA772CE53}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AisToN2K.Tests", "AisToN2K.Tests\AisToN2K.Tests.csproj", "{94C27181-16E7-4B23-B7AF-714B08B97EEF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,6 +20,10 @@ Global
 		{23AD4153-471C-489C-96E9-F338F8D197E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{23AD4153-471C-489C-96E9-F338F8D197E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{23AD4153-471C-489C-96E9-F338F8D197E9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94C27181-16E7-4B23-B7AF-714B08B97EEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94C27181-16E7-4B23-B7AF-714B08B97EEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94C27181-16E7-4B23-B7AF-714B08B97EEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94C27181-16E7-4B23-B7AF-714B08B97EEF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
