@@ -32,7 +32,10 @@ namespace AisToN2K.Tests.TestData
                     "Cog": 89.9,
                     "TrueHeading": 90,
                     "NavigationalStatus": 0,
-                    "Timestamp": 55
+                    "Timestamp": 55,
+                    "RateOfTurn": -3,
+                    "PositionAccuracy": true,
+                    "RAIM": false
                 }
             }
         }
@@ -59,7 +62,10 @@ namespace AisToN2K.Tests.TestData
                     "Cog": 270.0,
                     "TrueHeading": 270,
                     "NavigationalStatus": 0,
-                    "Timestamp": 30
+                    "Timestamp": 30,
+                    "RateOfTurn": 5,
+                    "PositionAccuracy": false,
+                    "RAIM": true
                 }
             }
         }

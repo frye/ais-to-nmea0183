@@ -41,7 +41,14 @@ namespace AisToN2K.Services
                         SpeedOverGround = vesselData.Sog,
                         CourseOverGround = vesselData.Cog,
                         Heading = vesselData.Heading,
-                        VesselName = vesselData.ShipName?.ToString()
+                        VesselName = vesselData.ShipName?.ToString(),
+                        
+                        // Extract additional fields from dynamic data
+                        RateOfTurn = vesselData.RateOfTurn,
+                        NavigationalStatus = vesselData.NavigationalStatus,
+                        TimestampSeconds = vesselData.Timestamp,
+                        PositionAccuracy = vesselData.PositionAccuracy,
+                        Raim = vesselData.RAIM
                     };
                 }
 
@@ -79,11 +86,11 @@ namespace AisToN2K.Services
                 aisData.SpeedOverGround ?? 102.3,   // Use max valid value when not available
                 aisData.CourseOverGround ?? 360.0,  // 360 = not available  
                 (int)(aisData.Heading ?? 511),      // 511 = not available
-                0, // Navigation status - default to "under way using engine"
-                60, // Timestamp - default to "not available"
-                0, // Rate of turn - default
-                false, // Position accuracy
-                false // RAIM flag
+                aisData.NavigationalStatus ?? 0,    // Use actual nav status or default to "under way using engine"
+                aisData.TimestampSeconds ?? 60,     // Use actual timestamp or "not available"
+                aisData.RateOfTurn ?? 128,          // Use actual ROT or "not available" (128 = 0x80)
+                aisData.PositionAccuracy ?? false,  // Use actual accuracy flag
+                aisData.Raim ?? false               // Use actual RAIM flag
             );
 
             // Create NMEA 0183 AIVDM sentence
@@ -189,13 +196,16 @@ namespace AisToN2K.Services
             // True Heading: 1 degree resolution, 9-bit field (0-359 degrees, 511 = not available)
             var headingRaw = (heading >= 360 || heading < 0) ? 511 : heading;
             
-            // Rate of Turn: encoded value, 8-bit field (-128 to +127, with special encoding)
-            var rotRaw = Math.Max(-128, Math.Min(127, rot)) & 0xFF;
+            // Rate of Turn: encoded value, 8-bit field 
+            // AIS standard: -127 to +127 are valid turn rates, 128 (0x80) = "not available"
+            // Note: -128 is technically invalid in AIS because it conflicts with "not available" encoding
+            var rotRaw = (rot >= 128 || rot < -127) ? 128 : Math.Max(-127, Math.Min(127, rot));
+            rotRaw = rotRaw & 0xFF;
 
             // Choose encoding based on message type
             if (msgType == 18 || msgType == 19)
             {
-                return EncodeAisType18Binary(msgType, mmsi, latRaw, lonRaw, sogRaw, cogRaw, headingRaw, timestamp, accuracy, raim);
+                return EncodeAisType18Binary(msgType, mmsi, latRaw, lonRaw, sogRaw, cogRaw, headingRaw, Math.Min(63, timestamp), accuracy, raim);
             }
             else
             {

@@ -243,7 +243,14 @@ namespace AisToN2K.Services
                         Heading = positionReport.TrueHeading,
                         Timestamp = metaData?.TimeUtc ?? DateTime.UtcNow,
                         VesselName = metaData?.ShipName,
-                        MessageType = 1 // Position Report
+                        MessageType = 1, // Position Report
+                        
+                        // Extract additional fields that were missing
+                        RateOfTurn = positionReport.RateOfTurn,
+                        NavigationalStatus = positionReport.NavigationalStatus,
+                        TimestampSeconds = positionReport.Timestamp,
+                        PositionAccuracy = positionReport.PositionAccuracy,
+                        Raim = positionReport.RAIM
                     };
                     
                     if (_debugMode)
@@ -331,7 +338,12 @@ namespace AisToN2K.Services
                         Heading = classBReport.TrueHeading,
                         Timestamp = metaData?.TimeUtc ?? DateTime.UtcNow,
                         VesselName = metaData?.ShipName,
-                        MessageType = 18 // Class B Position Report
+                        MessageType = 18, // Class B Position Report
+                        
+                        // Extract additional fields for Class B
+                        TimestampSeconds = classBReport.Timestamp,
+                        PositionAccuracy = classBReport.PositionAccuracy,
+                        Raim = classBReport.RAIM
                     };
                     
                     if (_debugMode)
