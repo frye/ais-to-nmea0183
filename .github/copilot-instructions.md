@@ -9,20 +9,39 @@ A high-performance maritime data converter that streams vessel position and stat
 ## 📁 Project Architecture
 
 ```
-├── Configuration/           # Application configuration models
-│   └── AppConfig.cs        # Main configuration class with validation
-├── Models/                 # AIS data and NMEA message models
-│   └── AisData.cs         # AIS message structure definitions
-├── Services/              # Core business logic services
-│   ├── AisWebSocketService.cs     # Real-time AIS data streaming
-│   ├── Nmea0183Converter.cs       # AIS to NMEA conversion engine
-│   ├── SecureConfigurationService.cs # API key management
-│   ├── StatisticsService.cs       # Performance monitoring
-│   ├── TcpServer.cs              # TCP server for OpenCPN
-│   └── UdpServer.cs              # UDP broadcast server
-├── Program.cs             # Application entry point with command line parsing
-├── appsettings.json       # Configuration file
-└── README.md             # Project documentation
+ais-to-n2k-net/
+├── ais-to-n2k-net.sln          # Solution file
+├── README.md                   # Project documentation
+├── .github/                    # GitHub configuration
+│   ├── copilot-instructions.md # Copilot development guidelines
+│   └── prompts/               # Development prompt templates
+│       └── setup_tests.prompt.md # Test setup prompt
+├── AisToN2K/                   # Main application project
+│   ├── AisToN2K.csproj        # Project file
+│   ├── Program.cs             # Application entry point with command line parsing
+│   ├── appsettings.json       # Configuration file
+│   ├── setup-apikey.sh        # Linux/macOS API key setup script
+│   ├── setup-apikey.ps1       # Windows PowerShell API key setup script
+│   ├── Configuration/         # Application configuration models
+│   │   └── AppConfig.cs       # Main configuration class with validation
+│   ├── Models/                # AIS data and NMEA message models
+│   │   └── AisData.cs         # AIS message structure definitions
+│   ├── Services/              # Core business logic services
+│   │   ├── AisWebSocketService.cs     # Real-time AIS data streaming
+│   │   ├── Nmea0183Converter.cs       # AIS to NMEA conversion engine
+│   │   ├── SecureConfigurationService.cs # API key management
+│   │   ├── StatisticsService.cs       # Performance monitoring
+│   │   ├── TcpServer.cs              # TCP server for OpenCPN
+│   │   └── UdpServer.cs              # UDP broadcast server
+│   ├── bin/                   # Build output directory
+│   │   └── Debug/net9.0/      # Debug build artifacts
+│   └── obj/                   # Build intermediate files
+└── AisToN2K.Tests/            # Test project
+    ├── AisToN2K.Tests.csproj  # Test project file
+    ├── SampleTests.cs         # Sample test file
+    ├── bin/                   # Test build output
+    │   └── Debug/net9.0/      # Test debug build artifacts
+    └── obj/                   # Test build intermediate files
 ```
 
 ## 🎯 Key Features & Capabilities
@@ -101,14 +120,22 @@ A high-performance maritime data converter that streams vessel position and stat
 dotnet user-secrets set "AisStream:ApiKey" "your-api-key"
 
 # Normal operation (clean output)
-dotnet run
+dotnet run --project AisToN2K
 
 # Debug mode (detailed logging)
-dotnet run -- --debug
+dotnet run --project AisToN2K -- --debug
 
-# Build and test
+# Build solution
 dotnet build
+
+# Run tests
 dotnet test
+
+# Run specific test project
+dotnet test AisToN2K.Tests
+
+# Build and test in one command
+dotnet build && dotnet test
 ```
 
 ## 📊 Performance Expectations

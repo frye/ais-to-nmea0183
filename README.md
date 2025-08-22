@@ -41,6 +41,11 @@ This application implements a simplified real-time AIS monitoring system based o
    dotnet build
    ```
 
+3. Run tests:
+   ```bash
+   dotnet test
+   ```
+
 ## Configuration
 
 ⚠️ **IMPORTANT**: Never store API keys directly in `appsettings.json` for production use!
@@ -206,17 +211,33 @@ This example shows the coordinates for New York Harbor.
 ### Project Structure
 
 ```
-├── Configuration/          # Configuration models
-├── Models/                 # Data models for AIS
-├── Services/              # Core business logic
-│   ├── AisWebSocketService.cs # Real-time WebSocket streaming
-│   ├── Nmea0183Converter.cs   # AIS to NMEA 0183 conversion
-│   ├── TcpServer.cs           # TCP server for client connections
-│   ├── UdpServer.cs           # UDP broadcasting service
-│   ├── StatisticsService.cs   # Metrics and logging
-│   └── SecureConfigurationService.cs # Secure API key management
-├── Program.cs             # Main application entry point
-└── appsettings.json       # Configuration file
+ais-to-n2k-net/
+├── ais-to-n2k-net.sln          # Solution file
+├── README.md                   # Project documentation
+├── AisToN2K/                   # Main application project
+│   ├── AisToN2K.csproj        # Project file
+│   ├── Program.cs             # Application entry point with command line parsing
+│   ├── appsettings.json       # Configuration file
+│   ├── setup-apikey.sh        # Linux/macOS API key setup script
+│   ├── setup-apikey.ps1       # Windows PowerShell API key setup script
+│   ├── Configuration/         # Application configuration models
+│   │   └── AppConfig.cs       # Main configuration class with validation
+│   ├── Models/                # AIS data and NMEA message models
+│   │   └── AisData.cs         # AIS message structure definitions
+│   ├── Services/              # Core business logic services
+│   │   ├── AisWebSocketService.cs     # Real-time AIS data streaming
+│   │   ├── Nmea0183Converter.cs       # AIS to NMEA conversion engine
+│   │   ├── SecureConfigurationService.cs # API key management
+│   │   ├── StatisticsService.cs       # Performance monitoring
+│   │   ├── TcpServer.cs              # TCP server for OpenCPN
+│   │   └── UdpServer.cs              # UDP broadcast server
+│   ├── bin/                   # Build output directory
+│   └── obj/                   # Build intermediate files
+└── AisToN2K.Tests/            # Test project
+    ├── AisToN2K.Tests.csproj  # Test project file
+    ├── SampleTests.cs         # Sample test file
+    ├── bin/                   # Test build output
+    └── obj/                   # Test build intermediate files
 ```
 
 ### Adding New Features
@@ -224,6 +245,32 @@ This example shows the coordinates for New York Harbor.
 1. **New AIS Data Fields**: Update `AisData` model in Models/
 2. **NMEA Conversion**: Extend `Nmea0183Converter` for additional message types
 3. **Additional Filtering**: Extend WebSocket subscription logic
+
+## Testing
+
+The project includes a comprehensive test suite in the `AisToN2K.Tests` project.
+
+### Running Tests
+
+```bash
+# Run all tests
+dotnet test
+
+# Run specific test project
+dotnet test AisToN2K.Tests
+
+# Run tests with detailed output
+dotnet test --verbosity normal
+
+# Run tests and generate coverage report
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### Test Structure
+
+- **Unit Tests**: Test individual components and services
+- **Integration Tests**: Test component interactions
+- **End-to-End Tests**: Test complete data flow from AIS to NMEA output
 
 ## Troubleshooting
 
@@ -272,8 +319,9 @@ The application provides console output for:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. Add or update tests as needed
+5. Ensure all tests pass: `dotnet test`
+6. Submit a pull request
 
 ## License
 
