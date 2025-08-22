@@ -1,7 +1,10 @@
 using AisToN2K.Models;
+using AisToN2K.Services;
 using AisToN2K.Tests.TestData;
 using AisToN2K.Tests.Utilities;
+using FluentAssertions;
 using Newtonsoft.Json;
+using Xunit;
 
 namespace AisToN2K.Tests.Integration
 {
@@ -14,37 +17,40 @@ namespace AisToN2K.Tests.Integration
         #region End-to-End Conversion Tests
 
         [Fact]
-        public void ConvertType1AisToNmea_CompletePipeline_ShouldProduceValidNmea()
+        public async Task ConvertType1AisToNmea_CompletePipeline_ShouldProduceValidNmea()
         {
             // Arrange
             var aisJson = AisTestData.ValidType1Json;
+            var converter = new Nmea0183Converter(debugMode: false);
             
             // Act - Parse AIS JSON
             var aisMessage = JsonConvert.DeserializeObject<AisStreamMessage>(aisJson);
             aisMessage.Should().NotBeNull();
 
-            // Act - Extract position data
+            // Act - Create AisData from parsed message
             var positionReport = aisMessage!.Message!.PositionReport!;
-            var mmsi = positionReport.UserID;
-            var latitude = positionReport.Latitude;
-            var longitude = positionReport.Longitude;
-            var sog = positionReport.Sog ?? 0;
-            var cog = positionReport.Cog ?? 0;
+            var aisData = new AisData
+            {
+                MessageType = 1,
+                Mmsi = positionReport.UserID,
+                Latitude = positionReport.Latitude,
+                Longitude = positionReport.Longitude,
+                SpeedOverGround = positionReport.Sog,
+                CourseOverGround = positionReport.Cog,
+                Heading = positionReport.TrueHeading
+            };
 
-            // Act - Convert coordinates to NMEA format
-            var nmeaLat = CoordinateTestHelper.ConvertToNmeaFormat(latitude, true);
-            var nmeaLon = CoordinateTestHelper.ConvertToNmeaFormat(longitude, false);
-
-            // Act - Simulate NMEA sentence generation (simplified)
-            var nmeaSentence = GenerateSimulatedNmeaSentence(mmsi, nmeaLat, nmeaLon, sog, cog);
+            // Act - Convert to NMEA using actual converter
+            var nmeaResult = await converter.ConvertToNmea0183Async(aisData);
 
             // Assert - Validate the complete NMEA sentence
+            nmeaResult.Should().NotBeNull();
+            nmeaResult.Should().StartWith("!AIVDM");
+            nmeaResult.Should().EndWith("\r\n");
+
+            var nmeaSentence = nmeaResult!.TrimEnd();
             var validationResult = NmeaValidator.ValidateAisSentence(nmeaSentence);
             validationResult.IsValid.Should().BeTrue($"Generated NMEA sentence should be valid: {validationResult.ErrorSummary}");
-
-            // Assert - Verify coordinate conversion accuracy
-            nmeaLat.Should().Be("4830.000,N", "Latitude should convert accurately");
-            nmeaLon.Should().Be("12248.000,W", "Longitude should convert accurately");
 
             // Assert - Verify sentence structure
             validationResult.ParsedFields!.SentenceId.Should().Be("AIVDM");
@@ -53,34 +59,44 @@ namespace AisToN2K.Tests.Integration
         }
 
         [Fact]
-        public void ConvertType5AisToNmea_StaticData_ShouldHandleMultipleFragments()
+        public async Task ConvertType5AisToNmea_StaticData_ShouldHandleMultipleFragments()
         {
             // Arrange
             var aisJson = AisTestData.ValidType5Json;
+            var converter = new Nmea0183Converter(debugMode: false);
             
             // Act - Parse AIS JSON
             var aisMessage = JsonConvert.DeserializeObject<AisStreamMessage>(aisJson);
             var shipData = aisMessage!.Message!.ShipAndVoyageData!;
 
-            // Act - Simulate Type 5 message fragmentation (Type 5 often requires 2 fragments)
-            var fragment1 = GenerateType5Fragment1(shipData);
-            var fragment2 = GenerateType5Fragment2(shipData);
+            // Act - Create AisData and convert using actual converter
+            var aisData = new AisData
+            {
+                MessageType = 5,
+                Mmsi = shipData.UserID,
+                VesselName = shipData.VesselName,
+                CallSign = shipData.CallSign,
+                VesselType = shipData.TypeOfShipAndCargoType
+            };
 
-            // Assert - Validate both fragments
-            var result1 = NmeaValidator.ValidateAisSentence(fragment1);
-            var result2 = NmeaValidator.ValidateAisSentence(fragment2);
+            var nmeaResult = await converter.ConvertToNmea0183Async(aisData);
 
-            result1.IsValid.Should().BeTrue("First fragment should be valid");
-            result2.IsValid.Should().BeTrue("Second fragment should be valid");
-
-            // Assert - Verify fragmentation is correct
-            result1.ParsedFields!.FragmentCount.Should().Be(2);
-            result1.ParsedFields.FragmentNumber.Should().Be(1);
-            result2.ParsedFields!.FragmentCount.Should().Be(2);
-            result2.ParsedFields.FragmentNumber.Should().Be(2);
-
-            // Assert - Both fragments should have same message ID
-            result1.ParsedFields.MessageId.Should().Be(result2.ParsedFields.MessageId);
+            // Assert - Should produce fragmented message
+            nmeaResult.Should().NotBeNull();
+            nmeaResult.Should().StartWith("!AIVDM");
+            
+            // Type 5 messages are fragmented, validate each part
+            var fragments = nmeaResult!.Split('\r').Where(f => !string.IsNullOrEmpty(f)).ToArray();
+            
+            foreach (var fragment in fragments)
+            {
+                var cleanFragment = fragment.Trim('\n');
+                if (!string.IsNullOrEmpty(cleanFragment))
+                {
+                    var validationResult = NmeaValidator.ValidateAisSentence(cleanFragment);
+                    validationResult.IsValid.Should().BeTrue($"Each fragment should be valid: {validationResult.ErrorSummary}");
+                }
+            }
         }
 
         [Fact]

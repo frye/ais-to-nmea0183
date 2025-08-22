@@ -1,5 +1,8 @@
 using AisToN2K.Configuration;
+using AisToN2K.Services;
+using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Xunit;
 
 namespace AisToN2K.Tests.Unit
 {
@@ -26,10 +29,10 @@ namespace AisToN2K.Tests.Unit
                 ["Network:EnableTcp"] = "true",
                 ["Network:EnableUdp"] = "true",
                 ["Network:Tcp:Host"] = "0.0.0.0",
-                ["Network:Tcp:Port"] = "2002",
+                ["Network:Tcp:Port"] = "2000",
                 ["Network:Tcp:MaxConnections"] = "10",
                 ["Network:Udp:Host"] = "127.0.0.1",
-                ["Network:Udp:Port"] = "2003",
+                ["Network:Udp:Port"] = "2001",
                 ["ApplicationLogging:EnableDetailedLogging"] = "true",
                 ["ApplicationLogging:LogNmeaMessages"] = "true",
                 ["ApplicationLogging:StatisticsReportingIntervalMinutes"] = "1"
@@ -57,10 +60,10 @@ namespace AisToN2K.Tests.Unit
             config.Network.EnableTcp.Should().BeTrue();
             config.Network.EnableUdp.Should().BeTrue();
             config.Network.Tcp.Host.Should().Be("0.0.0.0");
-            config.Network.Tcp.Port.Should().Be(2002);
+            config.Network.Tcp.Port.Should().Be(2000);
             config.Network.Tcp.MaxConnections.Should().Be(10);
             config.Network.Udp.Host.Should().Be("127.0.0.1");
-            config.Network.Udp.Port.Should().Be(2003);
+            config.Network.Udp.Port.Should().Be(2001);
             
             config.ApplicationLogging.Should().NotBeNull();
             config.ApplicationLogging.EnableDetailedLogging.Should().BeTrue();
@@ -177,7 +180,7 @@ namespace AisToN2K.Tests.Unit
         public void ValidateNetworkHost_ShouldValidateCorrectly(string host, bool shouldBeValid, string description)
         {
             // Arrange
-            var tcpConfig = new TcpConfig { Host = host, Port = 2002 };
+            var tcpConfig = new TcpConfig { Host = host, Port = 2000 };
 
             // Act
             var isValid = ValidateNetworkHost(tcpConfig.Host);
@@ -190,8 +193,8 @@ namespace AisToN2K.Tests.Unit
         [InlineData(1, false, "Port 1 is reserved")]
         [InlineData(80, false, "Port 80 is commonly used")]
         [InlineData(1024, true, "User ports start at 1024")]
-        [InlineData(2002, true, "Default OpenCPN port")]
-        [InlineData(2003, true, "Default UDP broadcast port")]
+        [InlineData(2000, true, "Default TCP port")]
+        [InlineData(2001, true, "Default UDP broadcast port")]
         [InlineData(8080, true, "Common alternative port")]
         [InlineData(65535, true, "Maximum valid port")]
         [InlineData(65536, false, "Port above valid range")]
@@ -234,8 +237,8 @@ namespace AisToN2K.Tests.Unit
             {
                 EnableTcp = enableTcp,
                 EnableUdp = enableUdp,
-                Tcp = new TcpConfig { Host = "0.0.0.0", Port = 2002 },
-                Udp = new UdpConfig { Host = "127.0.0.1", Port = 2003 }
+                Tcp = new TcpConfig { Host = "0.0.0.0", Port = 2000 },
+                Udp = new UdpConfig { Host = "127.0.0.1", Port = 2001 }
             };
 
             // Act

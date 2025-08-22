@@ -1,5 +1,7 @@
 using AisToN2K.Tests.TestData;
 using AisToN2K.Tests.Utilities;
+using FluentAssertions;
+using Xunit;
 
 namespace AisToN2K.Tests.Unit
 {

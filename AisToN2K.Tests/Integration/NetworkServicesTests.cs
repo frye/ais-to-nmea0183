@@ -1,8 +1,11 @@
 using AisToN2K.Configuration;
+using AisToN2K.Services;
 using AisToN2K.Tests.Utilities;
+using FluentAssertions;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Xunit;
 
 namespace AisToN2K.Tests.Integration
 {
@@ -18,28 +21,37 @@ namespace AisToN2K.Tests.Integration
         public async Task TcpServer_StartAndAcceptConnection_ShouldWork()
         {
             // Arrange
-            var config = new TcpConfig { Host = "127.0.0.1", Port = 0 }; // Port 0 = auto-assign
+            var testPort = 12345; // Use a specific test port
             var testMessage = "!AIVDM,1,1,,A,15Muq70001G?tRrM5M4P8?v4080u,0*7C\r\n";
 
             // Act & Assert
-            using var server = CreateMockTcpServer(config);
-            var actualPort = server.Start();
-            actualPort.Should().BeGreaterThan(0, "Server should start on an available port");
+            using var server = new TcpServer("127.0.0.1", testPort, debugMode: false);
+            var startResult = await server.StartAsync();
+            startResult.Should().BeTrue("Server should start successfully");
+
+            // Give server time to start listening
+            await Task.Delay(100);
 
             // Connect to the server
             using var client = new TcpClient();
-            await client.ConnectAsync("127.0.0.1", actualPort);
+            await client.ConnectAsync("127.0.0.1", testPort);
             client.Connected.Should().BeTrue("Client should connect to server");
 
+            // Give connection time to be established
+            await Task.Delay(100);
+
             // Send test message through server
-            await server.SendMessageAsync(testMessage);
+            await server.BroadcastMessageAsync(testMessage);
 
             // Read message from client
             var buffer = new byte[1024];
             var stream = client.GetStream();
+            stream.ReadTimeout = 5000; // 5 second timeout
+            
             var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+            bytesRead.Should().BeGreaterThan(0, "Should receive data from server");
+            
             var receivedMessage = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-
             receivedMessage.Should().Be(testMessage, "Client should receive the exact message sent by server");
         }
 
@@ -127,34 +139,32 @@ namespace AisToN2K.Tests.Integration
         public async Task UdpBroadcast_SendMessage_ShouldBroadcastCorrectly()
         {
             // Arrange
-            var config = new UdpConfig { Host = "127.0.0.1", Port = 0 }; // Auto-assign port
+            var testPort = 12346; // Use a specific test port
             var testMessage = "!AIVDM,1,1,,A,15Muq70001G?tRrM5M4P8?v4080u,0*7C\r\n";
 
-            using var broadcaster = CreateMockUdpBroadcaster(config);
-            var actualPort = broadcaster.Start();
-
-            // Create UDP listener
-            using var listener = new UdpClient(actualPort + 1); // Use different port for listener
-            
             // Act
-            await broadcaster.SendMessageAsync(testMessage);
+            using var udpServer = new UdpServer("127.0.0.1", testPort);
+            var startResult = await udpServer.StartAsync();
+            startResult.Should().BeTrue("UDP server should start successfully");
 
-            // Note: For this test to work properly, we need to broadcast to a specific address
-            // In a real implementation, the UDP broadcaster would send to the configured address
-            
-            // This is a simplified test - in practice, UDP broadcasting is more complex
-            broadcaster.Should().NotBeNull("UDP broadcaster should be created successfully");
+            // Send message through UDP server
+            var broadcastResult = await udpServer.BroadcastMessageAsync(testMessage);
+            broadcastResult.Should().BeTrue("Message should be broadcast successfully");
+
+            // Assert - UDP broadcast is fire-and-forget, so we mainly test that it doesn't throw
+            udpServer.TotalMessagesSent.Should().Be(1, "Should track one message sent");
+            udpServer.TotalBytesSent.Should().BeGreaterThan(0, "Should track bytes sent");
         }
 
         [Fact]
-        public void UdpBroadcast_InvalidConfiguration_ShouldHandleGracefully()
+        public async Task UdpBroadcast_InvalidConfiguration_ShouldHandleGracefully()
         {
-            // Arrange
-            var config = new UdpConfig { Host = "", Port = -1 };
+            // Arrange - Use invalid host
+            using var udpServer = new UdpServer("", -1);
 
             // Act & Assert
-            var action = () => CreateMockUdpBroadcaster(config);
-            action.Should().NotThrow("UDP broadcaster should handle invalid config gracefully");
+            var action = async () => await udpServer.StartAsync();
+            await action.Should().ThrowAsync<Exception>("Invalid configuration should cause startup to fail");
         }
 
         #endregion
@@ -357,8 +367,9 @@ namespace AisToN2K.Tests.Integration
 
             // Assert - Should complete without exceptions
             var completion = Task.WhenAll(tasks);
-            await completion.Should().CompleteWithinAsync(TimeSpan.FromSeconds(30), 
-                "Concurrent message sending should complete without deadlocks");
+            var completionTask = Task.Run(async () => await completion);
+            var completed = completionTask.Wait(TimeSpan.FromSeconds(30));
+            completed.Should().BeTrue("Concurrent message sending should complete without deadlocks");
         }
 
         #endregion

@@ -1,6 +1,8 @@
 using AisToN2K.Models;
 using AisToN2K.Tests.TestData;
+using FluentAssertions;
 using Newtonsoft.Json;
+using Xunit;
 
 namespace AisToN2K.Tests.Unit
 {

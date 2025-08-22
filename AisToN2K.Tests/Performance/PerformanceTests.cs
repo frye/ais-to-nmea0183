@@ -1,7 +1,11 @@
+using AisToN2K.Models;
+using AisToN2K.Services;
 using AisToN2K.Tests.TestData;
 using AisToN2K.Tests.Utilities;
+using FluentAssertions;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using Xunit;
 
 namespace AisToN2K.Tests.Performance
 {
@@ -78,6 +82,42 @@ namespace AisToN2K.Tests.Performance
             var actualConversionsPerSecond = (iterations * 2) / stopwatch.Elapsed.TotalSeconds; // 2 conversions per iteration
             actualConversionsPerSecond.Should().BeGreaterThan(targetConversionsPerSecond,
                 $"Should convert at least {targetConversionsPerSecond} coordinates per second. Actual: {actualConversionsPerSecond:F0}/sec");
+        }
+
+        [Fact]
+        public async Task NmeaConversion_HighThroughput_ShouldMeetTargets()
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var testData = new AisData
+            {
+                MessageType = 1,
+                Mmsi = 123456789,
+                Latitude = 48.123456,
+                Longitude = -122.987654,
+                SpeedOverGround = 12.5,
+                CourseOverGround = 245.6,
+                Heading = 250
+            };
+
+            const int iterations = 5000;
+            const double targetConversionsPerSecond = 500;
+
+            // Act
+            var stopwatch = Stopwatch.StartNew();
+            
+            for (int i = 0; i < iterations; i++)
+            {
+                var result = await converter.ConvertToNmea0183Async(testData);
+                result.Should().NotBeNull(); // Ensure conversion actually happened
+            }
+            
+            stopwatch.Stop();
+
+            // Assert
+            var actualConversionsPerSecond = iterations / stopwatch.Elapsed.TotalSeconds;
+            actualConversionsPerSecond.Should().BeGreaterThan(targetConversionsPerSecond,
+                $"Should convert at least {targetConversionsPerSecond} AIS messages to NMEA per second. Actual: {actualConversionsPerSecond:F0}/sec");
         }
 
         [Fact]

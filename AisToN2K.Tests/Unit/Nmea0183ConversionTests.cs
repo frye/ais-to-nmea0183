@@ -1,5 +1,9 @@
+using AisToN2K.Services;
+using AisToN2K.Models;
 using AisToN2K.Tests.TestData;
 using AisToN2K.Tests.Utilities;
+using FluentAssertions;
+using Xunit;
 
 namespace AisToN2K.Tests.Unit
 {
@@ -349,6 +353,184 @@ namespace AisToN2K.Tests.Unit
             // Act & Assert
             nmeaSentence.Should().EndWith("\r\n", "NMEA sentences should end with CRLF");
             nmeaSentence.Length.Should().BeLessOrEqualTo(82, "Including CRLF, should not exceed 82 characters");
+        }
+
+        #endregion
+
+        #region AIS to NMEA Conversion Tests
+
+        [Fact]
+        public async Task ConvertToNmea0183Async_ValidType1Data_ShouldProduceValidNmea()
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = 1,
+                Mmsi = 123456789,
+                Latitude = 48.123456,
+                Longitude = -122.987654,
+                SpeedOverGround = 12.5,
+                CourseOverGround = 245.6,
+                Heading = 250
+            };
+
+            // Act
+            var result = await converter.ConvertToNmea0183Async(aisData);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.Should().StartWith("!AIVDM");
+            result.Should().EndWith("\r\n");
+            
+            var validation = NmeaValidator.ValidateAisSentence(result!.TrimEnd());
+            validation.IsValid.Should().BeTrue($"Generated NMEA should be valid: {validation.ErrorSummary}");
+        }
+
+        [Fact]
+        public void ConvertAisPosition_ValidData_ShouldGenerateValidNmea()
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = 1,
+                Mmsi = 123456789,
+                Latitude = 48.123456,
+                Longitude = -122.987654,
+                SpeedOverGround = 12.5,
+                CourseOverGround = 245.6,
+                Heading = 250
+            };
+
+            // Act
+            var result = converter.ConvertAisPosition(aisData);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.Should().StartWith("!AIVDM");
+            result.Should().EndWith("\r\n");
+            
+            var validation = NmeaValidator.ValidateAisSentence(result!.TrimEnd());
+            validation.IsValid.Should().BeTrue();
+        }
+
+        [Fact]
+        public void ConvertAisStatic_ValidData_ShouldGenerateValidNmea()
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = 5,
+                Mmsi = 123456789,
+                VesselName = "TEST VESSEL",
+                CallSign = "TESTCS",
+                VesselType = 70
+            };
+
+            // Act
+            var result = converter.ConvertAisStatic(aisData);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.Should().StartWith("!AIVDM");
+            
+            // Type 5 messages are fragmented, so check both parts
+            var parts = result!.Split('\r');
+            parts.Should().HaveCountGreaterOrEqualTo(2, "Type 5 messages should be fragmented");
+            
+            foreach (var part in parts.Where(p => !string.IsNullOrEmpty(p)))
+            {
+                var validation = NmeaValidator.ValidateAisSentence(part.Trim('\n'));
+                validation.IsValid.Should().BeTrue($"Each fragment should be valid NMEA: {validation.ErrorSummary}");
+            }
+        }
+
+        [Fact]
+        public void ConvertAisPosition_ZeroMmsi_ShouldReturnNull()
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = 1,
+                Mmsi = 0, // Invalid MMSI
+                Latitude = 48.123456,
+                Longitude = -122.987654
+            };
+
+            // Act
+            var result = converter.ConvertAisPosition(aisData);
+
+            // Assert
+            result.Should().BeNull("Zero MMSI should result in null output");
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        [InlineData(18)]
+        [InlineData(19)]
+        public async Task ConvertToNmea0183Async_PositionMessageTypes_ShouldUsePositionConverter(int messageType)
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = messageType,
+                Mmsi = 123456789,
+                Latitude = 48.123456,
+                Longitude = -122.987654
+            };
+
+            // Act
+            var result = await converter.ConvertToNmea0183Async(aisData);
+
+            // Assert
+            result.Should().NotBeNull($"Message type {messageType} should be converted");
+            result.Should().StartWith("!AIVDM");
+        }
+
+        [Theory]
+        [InlineData(5)]
+        [InlineData(24)]
+        public async Task ConvertToNmea0183Async_StaticMessageTypes_ShouldUseStaticConverter(int messageType)
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = messageType,
+                Mmsi = 123456789,
+                VesselName = "TEST VESSEL"
+            };
+
+            // Act
+            var result = await converter.ConvertToNmea0183Async(aisData);
+
+            // Assert
+            result.Should().NotBeNull($"Message type {messageType} should be converted");
+            result.Should().StartWith("!AIVDM");
+        }
+
+        [Fact]
+        public async Task ConvertToNmea0183Async_UnsupportedMessageType_ShouldReturnNull()
+        {
+            // Arrange
+            var converter = new Nmea0183Converter(debugMode: false);
+            var aisData = new AisData
+            {
+                MessageType = 99, // Unsupported type
+                Mmsi = 123456789
+            };
+
+            // Act
+            var result = await converter.ConvertToNmea0183Async(aisData);
+
+            // Assert
+            result.Should().BeNull("Unsupported message types should return null");
         }
 
         #endregion
