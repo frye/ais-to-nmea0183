@@ -7,6 +7,7 @@ namespace AisToN2K.Tests.Unit
     public class ChecksumDebugTest
     {
         [Fact]
+        [Trait("Category", "Debug")]
         public void DebugOpenCpnChecksums()
         {
             var messages = new[]
