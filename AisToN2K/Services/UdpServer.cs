@@ -81,9 +81,20 @@ namespace AisToN2K.Services
         public async Task StopAsync()
         {
             _isRunning = false;
-            _udpClient?.Close();
-            _udpClient?.Dispose();
-            _udpClient = null;
+            
+            try
+            {
+                _udpClient?.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error closing UDP client: {ex.Message}");
+            }
+            finally
+            {
+                _udpClient?.Dispose();
+                _udpClient = null;
+            }
 
             Console.WriteLine("🛑 UDP server stopped");
         }
@@ -92,8 +103,22 @@ namespace AisToN2K.Services
         {
             if (!_disposed)
             {
-                StopAsync().Wait(1000);
-                _disposed = true;
+                try
+                {
+                    var stopTask = StopAsync();
+                    if (!stopTask.Wait(1000)) // Wait up to 1 second for graceful shutdown
+                    {
+                        Console.WriteLine("⚠️ UDP server dispose timed out");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Error during UDP server dispose: {ex.Message}");
+                }
+                finally
+                {
+                    _disposed = true;
+                }
             }
         }
     }

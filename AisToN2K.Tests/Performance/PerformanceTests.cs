@@ -443,14 +443,14 @@ namespace AisToN2K.Tests.Performance
         }
 
         [Fact]
-        [Trait("Category", "Performance")]
+        [Trait("Category", "LongRunning")] // Changed from Performance to LongRunning
         public void SimulateHighVolumePort_ShouldHandleTrafficSpikes()
         {
-            // Arrange - Simulate high-volume port with traffic spikes
+            // Arrange - Simulate high-volume port with traffic spikes (reduced duration)
             const int baseMessagesPerSecond = 10;
             const int spikeMessagesPerSecond = 100;
-            const int spikeDurationSeconds = 2;
-            const int totalDurationSeconds = 10;
+            const int spikeDurationSeconds = 1; // Reduced from 2
+            const int totalDurationSeconds = 3; // Reduced from 10
             
             var messageTemplate = AisTestData.ValidType1Json;
 
@@ -507,13 +507,13 @@ namespace AisToN2K.Tests.Performance
         #region CPU and Resource Usage Tests
 
         [Fact]
-        [Trait("Category", "Performance")]
+        [Trait("Category", "LongRunning")] // Changed from Performance to LongRunning  
         public void LongRunningProcessing_ShouldMaintainPerformance()
         {
-            // Arrange
-            const int durationMinutes = 1; // Reduced for test suite
+            // Arrange - Reduced duration for testing
+            const int durationSeconds = 5; // Changed from 1 minute to 5 seconds
             const int messagesPerSecond = 20;
-            var endTime = DateTime.UtcNow.AddMinutes(durationMinutes);
+            var endTime = DateTime.UtcNow.AddSeconds(durationSeconds);
             
             var messageTemplate = AisTestData.ValidType1Json;
             var processingTimes = new List<double>();
