@@ -217,3 +217,58 @@ Performance tests provide detailed metrics:
 - Resource utilization ratios
 
 This comprehensive test suite ensures the AIS-to-NMEA0183 converter meets all functional, performance, and compatibility requirements for marine navigation systems.
+
+## 🚀 Test Execution Guide
+
+### **Test Categories**
+
+#### **Unit and Integration Tests (Default)**
+Fast-running tests that validate core functionality without performance overhead.
+
+```bash
+# Run all tests except performance tests (recommended for development)
+dotnet test --filter "Category!=Performance"
+
+# Or simply (performance tests are now categorized separately)
+dotnet test
+```
+
+#### **Performance Tests**
+Long-running tests that validate throughput, memory usage, and scalability.
+These tests can take 40-60 seconds to complete.
+
+```bash
+# Run only performance tests
+dotnet test --filter "Category=Performance"
+```
+
+#### **Complete Test Suite**
+Run all tests including performance tests (for CI/CD or comprehensive validation).
+
+```bash
+# Run all tests including performance tests
+dotnet test --no-filter
+
+# Or explicitly include all categories
+dotnet test --filter "Category=Performance|Category!=Performance"
+```
+
+### **Test Execution Times**
+
+- **Unit/Integration Tests**: ~5-15 seconds
+- **Performance Tests**: ~40-60 seconds  
+- **Complete Suite**: ~50-75 seconds
+
+### **Recommended Usage**
+
+- **Development**: Use `dotnet test --filter "Category!=Performance"` for fast feedback
+- **CI/CD Pipeline**: Use complete test suite for comprehensive validation
+- **Performance Monitoring**: Use `dotnet test --filter "Category=Performance"` for benchmark validation
+
+### **Performance Test Details**
+
+The performance tests validate:
+- **Throughput**: JSON parsing (10K ops), coordinate conversion (100K ops), NMEA validation (50K ops)
+- **Memory Usage**: Bounded memory consumption and leak detection
+- **Scalability**: Concurrent processing and real-world traffic simulation
+- **Resource Usage**: Long-running stability and traffic spike handling

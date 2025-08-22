@@ -248,6 +248,31 @@ ais-to-n2k-net/
 
 ## Testing
 
+### Test Categories
+
+The test suite includes different categories optimized for different scenarios:
+
+```bash
+# Fast development tests (recommended for development)
+dotnet test --filter "Category!=Performance"
+
+# Performance and scalability tests (40-60 seconds)
+dotnet test --filter "Category=Performance"
+
+# Complete test suite (all tests)
+dotnet test
+```
+
+### Test Structure
+
+- **128 Unit & Integration Tests**: Fast validation of core functionality (~5-15 seconds)
+- **13 Performance Tests**: Throughput, memory, and scalability validation (~40-60 seconds)
+- **Comprehensive Coverage**: AIS parsing, NMEA conversion, coordinate transformation, network services
+
+See [AisToN2K.Tests/README.md](AisToN2K.Tests/README.md) for detailed test documentation.
+
+### Running Tests
+
 The project includes a comprehensive test suite in the `AisToN2K.Tests` project.
 
 ### Running Tests

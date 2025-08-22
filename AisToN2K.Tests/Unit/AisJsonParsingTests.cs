@@ -82,8 +82,8 @@ namespace AisToN2K.Tests.Unit
             result.Should().NotBeNull();
             
             // These should parse but contain AIS "not available" values
-            result!.MetaData!.Latitude.Should().Be(181.0); // AIS "not available"
-            result.MetaData.Longitude.Should().Be(91.0);   // AIS "not available"
+            result!.MetaData!.Latitude.Should().Be(91.0);  // AIS "not available" 
+            result.MetaData.Longitude.Should().Be(181.0);   // AIS "not available"
             
             var positionReport = result.Message!.PositionReport!;
             positionReport.Sog.Should().BeNull(); // Null in JSON

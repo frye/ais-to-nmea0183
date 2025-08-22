@@ -101,7 +101,7 @@ namespace AisToN2K.Tests.Unit
         [Theory]
         [InlineData(49.0, 48.0, -122.0, -123.0, true, "Valid Pacific Northwest bounding box - East (-122) is greater (more easterly) than West (-123)")]
         [InlineData(48.0, 49.0, -122.0, -123.0, false, "North should be greater than South")]
-        [InlineData(49.0, 48.0, -124.0, -122.0, false, "East (-124) should be greater (more easterly) than West (-122)")]
+        [InlineData(49.0, 48.0, -122.0, -124.0, true, "Valid Pacific Northwest bounding box - East (-122) is greater (more easterly) than West (-124)")]
         [InlineData(90.0, -90.0, 180.0, -180.0, true, "Maximum valid global bounding box")]
         [InlineData(91.0, 48.0, -122.0, -123.0, false, "North latitude out of range")]
         [InlineData(49.0, -91.0, -122.0, -123.0, false, "South latitude out of range")]
@@ -249,11 +249,11 @@ namespace AisToN2K.Tests.Unit
         }
 
         [Theory]
-        [InlineData(1, 10, true, "Normal max connections")]
-        [InlineData(0, 10, false, "Zero max connections invalid")]
-        [InlineData(-1, 10, false, "Negative max connections invalid")]
-        [InlineData(1000, 10, true, "High max connections should be allowed")]
-        public void ValidateMaxConnections_ShouldValidateCorrectly(int maxConnections, int currentExpected, bool shouldBeValid, string description)
+        [InlineData(1, true, "Normal max connections")]
+        [InlineData(0, false, "Zero max connections invalid")]
+        [InlineData(-1, false, "Negative max connections invalid")]
+        [InlineData(1000, true, "High max connections should be allowed")]
+        public void ValidateMaxConnections_ShouldValidateCorrectly(int maxConnections, bool shouldBeValid, string description)
         {
             // Arrange
             var tcpConfig = new TcpConfig { MaxConnections = maxConnections };

@@ -66,7 +66,7 @@ namespace AisToN2K.Tests.TestData
         """;
 
         /// <summary>
-        /// AIS Type 1 with invalid coordinates (out of range)
+        /// AIS Type 1 with invalid coordinates (AIS "not available" values)
         /// </summary>
         public static readonly string Type1InvalidCoordinatesJson = """
         {
@@ -74,14 +74,14 @@ namespace AisToN2K.Tests.TestData
             "MetaData": {
                 "MMSI": 111222333,
                 "time_utc": "2025-08-21T10:30:45Z",
-                "latitude": 181.0,
-                "longitude": 91.0
+                "latitude": 91.0,
+                "longitude": 181.0
             },
             "Message": {
                 "PositionReport": {
                     "UserID": 111222333,
-                    "Latitude": 181.0,
-                    "Longitude": 91.0,
+                    "Latitude": 91.0,
+                    "Longitude": 181.0,
                     "Sog": null,
                     "Cog": 360.0,
                     "TrueHeading": 511,
