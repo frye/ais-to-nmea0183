@@ -17,10 +17,22 @@ namespace AisToN2K.Services
         public int TotalMessagesSent { get; private set; }
         public int TotalBytesSent { get; private set; }
 
-        public UdpServer(string host = "127.0.0.1", int port = 2001)
+        public UdpServer(string host, int port)
         {
-            _host = host;
+            _host = host ?? throw new ArgumentNullException(nameof(host));
             _port = port;
+
+            // Validate port range
+            if (port <= 0 || port > 65535)
+            {
+                throw new ArgumentOutOfRangeException(nameof(port), $"Port must be between 1 and 65535, got: {port}");
+            }
+
+            // Validate host
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                throw new ArgumentException("Host cannot be null or empty", nameof(host));
+            }
         }
 
         public async Task<bool> StartAsync()
@@ -69,9 +81,20 @@ namespace AisToN2K.Services
         public async Task StopAsync()
         {
             _isRunning = false;
-            _udpClient?.Close();
-            _udpClient?.Dispose();
-            _udpClient = null;
+            
+            try
+            {
+                _udpClient?.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error closing UDP client: {ex.Message}");
+            }
+            finally
+            {
+                _udpClient?.Dispose();
+                _udpClient = null;
+            }
 
             Console.WriteLine("🛑 UDP server stopped");
         }
@@ -80,8 +103,22 @@ namespace AisToN2K.Services
         {
             if (!_disposed)
             {
-                StopAsync().Wait(1000);
-                _disposed = true;
+                try
+                {
+                    var stopTask = StopAsync();
+                    if (!stopTask.Wait(1000)) // Wait up to 1 second for graceful shutdown
+                    {
+                        Console.WriteLine("⚠️ UDP server dispose timed out");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Error during UDP server dispose: {ex.Message}");
+                }
+                finally
+                {
+                    _disposed = true;
+                }
             }
         }
     }

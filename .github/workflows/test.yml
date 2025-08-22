@@ -1,0 +1,151 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop, setup_tests ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run unit tests
+      run: dotnet test --no-build --configuration Release --logger trx --logger "console;verbosity=normal" --results-directory ./test-results/unit --filter "Category!=Performance&Category!=LongRunning&Category!=Integration"
+      
+    - name: Run integration tests
+      run: dotnet test --no-build --configuration Release --logger trx --logger "console;verbosity=normal" --results-directory ./test-results/integration --filter "Category=Integration"
+      
+    - name: Run performance tests
+      run: dotnet test --no-build --configuration Release --logger trx --logger "console;verbosity=normal" --results-directory ./test-results/performance --filter "Category=Performance"
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: test-results/
+        retention-days: 30
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: build-artifacts
+        path: |
+          AisToN2K/bin/Release/
+          AisToN2K.Tests/bin/Release/
+        retention-days: 7
+
+  test-long-running:
+    name: Run Long-Running Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run long-running tests
+      run: dotnet test --no-build --configuration Release --logger trx --logger "console;verbosity=normal" --results-directory ./test-results/long-running --filter "Category=LongRunning"
+      
+    - name: Upload long-running test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: long-running-test-results
+        path: test-results/long-running/
+        retention-days: 30
+
+  test-matrix:
+    name: Cross-Platform Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dotnet-version: ['9.0.x']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ matrix.dotnet-version }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run core tests (fast)
+      run: dotnet test --no-build --configuration Release --logger trx --logger "console;verbosity=normal" --results-directory ./test-results --filter "Category!=Performance&Category!=LongRunning"
+      
+    - name: Upload cross-platform test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}
+        path: test-results/
+        retention-days: 14
+
+  code-coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Run tests with coverage
+      run: dotnet test --configuration Release --logger trx --collect:"XPlat Code Coverage" --results-directory ./coverage-results --filter "Category!=LongRunning"
+      
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-reports
+        path: coverage-results/
+        retention-days: 30

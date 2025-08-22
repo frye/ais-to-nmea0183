@@ -41,6 +41,12 @@ This application implements a simplified real-time AIS monitoring system based o
    dotnet build
    ```
 
+3. Run tests:
+   ```bash
+   # Run fast unit tests (recommended for development)
+   dotnet test --filter "Category!=Performance"
+   ```
+
 ## Configuration
 
 ⚠️ **IMPORTANT**: Never store API keys directly in `appsettings.json` for production use!
@@ -206,17 +212,33 @@ This example shows the coordinates for New York Harbor.
 ### Project Structure
 
 ```
-├── Configuration/          # Configuration models
-├── Models/                 # Data models for AIS
-├── Services/              # Core business logic
-│   ├── AisWebSocketService.cs # Real-time WebSocket streaming
-│   ├── Nmea0183Converter.cs   # AIS to NMEA 0183 conversion
-│   ├── TcpServer.cs           # TCP server for client connections
-│   ├── UdpServer.cs           # UDP broadcasting service
-│   ├── StatisticsService.cs   # Metrics and logging
-│   └── SecureConfigurationService.cs # Secure API key management
-├── Program.cs             # Main application entry point
-└── appsettings.json       # Configuration file
+ais-to-n2k-net/
+├── ais-to-n2k-net.sln          # Solution file
+├── README.md                   # Project documentation
+├── AisToN2K/                   # Main application project
+│   ├── AisToN2K.csproj        # Project file
+│   ├── Program.cs             # Application entry point with command line parsing
+│   ├── appsettings.json       # Configuration file
+│   ├── setup-apikey.sh        # Linux/macOS API key setup script
+│   ├── setup-apikey.ps1       # Windows PowerShell API key setup script
+│   ├── Configuration/         # Application configuration models
+│   │   └── AppConfig.cs       # Main configuration class with validation
+│   ├── Models/                # AIS data and NMEA message models
+│   │   └── AisData.cs         # AIS message structure definitions
+│   ├── Services/              # Core business logic services
+│   │   ├── AisWebSocketService.cs     # Real-time AIS data streaming
+│   │   ├── Nmea0183Converter.cs       # AIS to NMEA conversion engine
+│   │   ├── SecureConfigurationService.cs # API key management
+│   │   ├── StatisticsService.cs       # Performance monitoring
+│   │   ├── TcpServer.cs              # TCP server for OpenCPN
+│   │   └── UdpServer.cs              # UDP broadcast server
+│   ├── bin/                   # Build output directory
+│   └── obj/                   # Build intermediate files
+└── AisToN2K.Tests/            # Test project
+    ├── AisToN2K.Tests.csproj  # Test project file
+    ├── SampleTests.cs         # Sample test file
+    ├── bin/                   # Test build output
+    └── obj/                   # Test build intermediate files
 ```
 
 ### Adding New Features
@@ -224,6 +246,60 @@ This example shows the coordinates for New York Harbor.
 1. **New AIS Data Fields**: Update `AisData` model in Models/
 2. **NMEA Conversion**: Extend `Nmea0183Converter` for additional message types
 3. **Additional Filtering**: Extend WebSocket subscription logic
+
+## Testing
+
+### Quick Testing (Recommended for Development)
+
+For fast feedback during development, run only the unit and integration tests:
+
+```bash
+# Fast unit and integration tests (~5-15 seconds)
+dotnet test --filter "Category!=Performance"
+```
+
+This excludes performance tests and provides quick validation of core functionality with 128 tests covering:
+- AIS data parsing and validation
+- NMEA 0183 conversion accuracy
+- Configuration validation
+- Network service functionality
+- Coordinate transformation
+- Error handling
+
+### Comprehensive Testing
+
+For complete validation including performance and scalability testing:
+
+```bash
+# Complete test suite with performance tests (~60+ seconds)
+dotnet test
+
+# Run only performance tests for benchmarking
+dotnet test --filter "Category=Performance"
+
+# Run with detailed output for debugging
+dotnet test --verbosity normal
+
+# Generate test coverage reports
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### Test Categories
+
+The test suite includes different categories optimized for different scenarios:
+
+- **128 Unit & Integration Tests**: Fast validation of core functionality (~5-15 seconds)
+  - Unit tests for individual components
+  - Integration tests for component interactions
+  - End-to-end pipeline validation
+  
+- **13 Performance Tests**: Throughput, memory, and scalability validation (~40-60 seconds)
+  - High-volume message processing (10K-100K operations)
+  - Memory usage and leak detection
+  - Concurrent access and thread safety
+  - Real-time streaming simulation
+
+See [AisToN2K.Tests/README.md](AisToN2K.Tests/README.md) for detailed test documentation.
 
 ## Troubleshooting
 
@@ -272,8 +348,10 @@ The application provides console output for:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. Add or update tests as needed
+5. Ensure fast tests pass: `dotnet test --filter "Category!=Performance"`
+6. Run full test suite before final submission: `dotnet test`
+7. Submit a pull request
 
 ## License
 

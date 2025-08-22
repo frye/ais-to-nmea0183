@@ -21,12 +21,24 @@ namespace AisToN2K.Services
         public int TotalMessagesSent { get; private set; }
         public int TotalBytesSent { get; private set; }
 
-        public TcpServer(string host = "0.0.0.0", int port = 2000, bool debugMode = false)
+        public TcpServer(string host, int port, bool debugMode = false)
         {
-            _host = host;
+            _host = host ?? throw new ArgumentNullException(nameof(host));
             _port = port;
             _debugMode = debugMode;
             _clients = new ConcurrentDictionary<string, ClientConnection>();
+
+            // Validate port range
+            if (port <= 0 || port > 65535)
+            {
+                throw new ArgumentOutOfRangeException(nameof(port), $"Port must be between 1 and 65535, got: {port}");
+            }
+
+            // Validate host
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                throw new ArgumentException("Host cannot be null or empty", nameof(host));
+            }
         }
 
         public async Task<bool> StartAsync()
@@ -93,16 +105,40 @@ namespace AisToN2K.Services
                 // Keep connection alive and monitor for disconnection
                 var buffer = new byte[1024];
                 var stream = client.TcpClient.GetStream();
+                
+                // Set read timeout to prevent hanging
+                stream.ReadTimeout = 1000;
 
                 while (client.IsConnected && !cancellationToken.IsCancellationRequested)
                 {
-                    // Check if client is still connected by attempting to read (non-blocking)
-                    if (client.TcpClient.Available > 0)
+                    try
                     {
-                        await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+                        // Use a shorter timeout for the read operation
+                        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(500));
+                        
+                        // Check if client is still connected by attempting to read (non-blocking)
+                        if (client.TcpClient.Available > 0)
+                        {
+                            await stream.ReadAsync(buffer, 0, buffer.Length, timeoutCts.Token);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Timeout or cancellation - check if it's due to our timeout or shutdown
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                        // Otherwise, continue monitoring
+                    }
+                    catch (Exception)
+                    {
+                        // Client disconnected or other error
+                        break;
                     }
 
-                    await Task.Delay(1000, cancellationToken); // Check every second
+                    await Task.Delay(100, cancellationToken); // Check more frequently
                 }
             }
             catch (Exception ex)
@@ -211,7 +247,13 @@ namespace AisToN2K.Services
                         await RemoveClientAsync(clientId);
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    // Use shorter delay for tests - 5 seconds instead of 30
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected during shutdown
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -228,7 +270,7 @@ namespace AisToN2K.Services
             _isRunning = false;
             _cancellationTokenSource?.Cancel();
 
-            // Close all client connections
+            // Close all client connections with timeout
             var closeTasks = _clients.Values.Select(async client =>
             {
                 try
@@ -241,12 +283,37 @@ namespace AisToN2K.Services
                 }
             });
 
-            await Task.WhenAll(closeTasks);
+            // Wait for client cleanup with timeout
+            try
+            {
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(2));
+                var completedTask = await Task.WhenAny(Task.WhenAll(closeTasks), timeoutTask);
+                
+                if (completedTask == timeoutTask)
+                {
+                    Console.WriteLine("⚠️ TCP client cleanup timed out");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error during TCP client cleanup: {ex.Message}");
+            }
+            
             _clients.Clear();
 
             // Stop listener
-            _listener?.Stop();
-            _listener = null;
+            try
+            {
+                _listener?.Stop();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Error stopping TCP listener: {ex.Message}");
+            }
+            finally
+            {
+                _listener = null;
+            }
 
             Console.WriteLine("🛑 TCP server stopped");
         }
@@ -255,9 +322,24 @@ namespace AisToN2K.Services
         {
             if (!_disposed)
             {
-                StopAsync().Wait(5000); // Wait up to 5 seconds for graceful shutdown
-                _cancellationTokenSource?.Dispose();
-                _disposed = true;
+                try
+                {
+                    // Use shorter timeout for dispose
+                    var stopTask = StopAsync();
+                    if (!stopTask.Wait(2000)) // Wait up to 2 seconds for graceful shutdown
+                    {
+                        Console.WriteLine("⚠️ TCP server dispose timed out");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Error during TCP server dispose: {ex.Message}");
+                }
+                finally
+                {
+                    _cancellationTokenSource?.Dispose();
+                    _disposed = true;
+                }
             }
         }
     }

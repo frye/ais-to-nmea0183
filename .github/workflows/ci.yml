@@ -1,0 +1,117 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main, develop, setup_tests ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET ${{ env.DOTNET_VERSION }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+          
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release --verbosity minimal
+      
+    - name: Run all tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --logger trx \
+          --logger "console;verbosity=normal" \
+          --results-directory ./test-results \
+          --collect:"XPlat Code Coverage" \
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+      
+    - name: Generate test summary
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ -f test-results/*.trx ]; then
+          echo "✅ Tests completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "📊 Test artifacts uploaded for review" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Test execution failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ github.run_number }}
+        path: |
+          test-results/
+          coverage-results/
+        retention-days: 30
+        compression-level: 6
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: build-artifacts-${{ github.run_number }}
+        path: |
+          AisToN2K/bin/Release/net9.0/
+          !AisToN2K/bin/Release/net9.0/*.pdb
+        retention-days: 7
+        compression-level: 9
+
+  validate-performance:
+    name: Performance Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'performance'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET ${{ env.DOTNET_VERSION }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore and build
+      run: |
+        dotnet restore
+        dotnet build --no-restore --configuration Release
+        
+    - name: Run performance tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --logger trx \
+          --logger "console;verbosity=normal" \
+          --results-directory ./perf-results \
+          --filter "Category=Performance"
+          
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-results-${{ github.run_number }}
+        path: perf-results/
+        retention-days: 14
