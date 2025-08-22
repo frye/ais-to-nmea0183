@@ -99,9 +99,9 @@ namespace AisToN2K.Tests.Unit
         #region Bounding Box Validation Tests
 
         [Theory]
-        [InlineData(49.0, 48.0, -122.0, -123.0, true, "Valid Pacific Northwest bounding box")]
+        [InlineData(49.0, 48.0, -122.0, -123.0, true, "Valid Pacific Northwest bounding box - East (-122) is greater (more easterly) than West (-123)")]
         [InlineData(48.0, 49.0, -122.0, -123.0, false, "North should be greater than South")]
-        [InlineData(49.0, 48.0, -123.0, -122.0, false, "East should be greater than West (normal case)")]
+        [InlineData(49.0, 48.0, -124.0, -122.0, false, "East (-124) should be greater (more easterly) than West (-122)")]
         [InlineData(90.0, -90.0, 180.0, -180.0, true, "Maximum valid global bounding box")]
         [InlineData(91.0, 48.0, -122.0, -123.0, false, "North latitude out of range")]
         [InlineData(49.0, -91.0, -122.0, -123.0, false, "South latitude out of range")]

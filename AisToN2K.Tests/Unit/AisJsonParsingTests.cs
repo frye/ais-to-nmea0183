@@ -310,16 +310,14 @@ namespace AisToN2K.Tests.Unit
         }
 
         [Fact]
-        public void ParseNullJson_ShouldReturnNull()
+        public void ParseNullJson_ShouldHandleGracefully()
         {
             // Arrange
             string? json = null;
 
-            // Act
-            var result = JsonConvert.DeserializeObject<AisStreamMessage>(json);
-
-            // Assert
-            result.Should().BeNull();
+            // Act & Assert
+            var action = () => JsonConvert.DeserializeObject<AisStreamMessage>(json!);
+            action.Should().Throw<ArgumentNullException>("JsonConvert should throw ArgumentNullException for null input");
         }
 
         #endregion
