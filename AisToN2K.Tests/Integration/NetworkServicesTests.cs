@@ -353,18 +353,36 @@ namespace AisToN2K.Tests.Integration
         }
 
         [Fact]
-        public void TcpServer_DefaultPorts_ShouldMatchOpenCpnExpectations()
+        public void TcpServer_MissingPortConfiguration_ShouldRequireExplicitConfiguration()
         {
             // Arrange & Act
             var tcpConfig = new TcpConfig();
             var udpConfig = new UdpConfig();
 
-            // Assert - Check that default ports align with common OpenCPN configurations
-            // The actual defaults in the code are 2000/2001, which are in the common marine navigation range
-            tcpConfig.Port.Should().BeInRange(2000, 2010, "TCP port should be in common marine navigation range");
-            udpConfig.Port.Should().BeInRange(2000, 2010, "UDP port should be in common marine navigation range");
+            // Assert - Ports should be 0 (invalid) when not configured, requiring explicit configuration
+            tcpConfig.Port.Should().Be(0, "TCP port should be 0 when not configured, forcing explicit configuration");
+            udpConfig.Port.Should().Be(0, "UDP port should be 0 when not configured, forcing explicit configuration");
             
-            tcpConfig.Host.Should().Be("0.0.0.0", "TCP should bind to all interfaces for OpenCPN compatibility");
+            // Host should be empty when not configured
+            tcpConfig.Host.Should().Be(string.Empty, "TCP host should be empty when not configured, forcing explicit configuration");
+            udpConfig.Host.Should().Be(string.Empty, "UDP host should be empty when not configured, forcing explicit configuration");
+            
+            // Configuration validation should catch these missing values
+            var appConfig = new AppConfig
+            {
+                Network = new NetworkConfig
+                {
+                    EnableTcp = true,
+                    EnableUdp = true,
+                    Tcp = tcpConfig,
+                    Udp = udpConfig
+                }
+            };
+            
+            var validationErrors = appConfig.Validate();
+            validationErrors.Should().NotBeEmpty("Validation should catch missing port configuration");
+            validationErrors.Should().Contain(error => error.Contains("TCP port must be between 1 and 65535"));
+            validationErrors.Should().Contain(error => error.Contains("UDP port must be between 1 and 65535"));
         }
 
         #endregion

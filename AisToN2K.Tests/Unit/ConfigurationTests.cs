@@ -84,13 +84,14 @@ namespace AisToN2K.Tests.Unit
             var config = new AppConfig();
             configuration.Bind(config);
 
-            // Assert - Should use default values
+            // Assert - Should use default values where available
             config.ApiKey.Should().Be(string.Empty);
             config.WebSocketUrl.Should().Be("wss://stream.aisstream.io/v0/stream");
             config.BoundingBox.North.Should().Be(48.8000);
             config.BoundingBox.South.Should().Be(48.0000);
-            config.Network.Tcp.Port.Should().Be(2000);
-            config.Network.Udp.Port.Should().Be(2001);
+            // Ports should be 0 (default int value) when not specified in configuration
+            config.Network.Tcp.Port.Should().Be(0);
+            config.Network.Udp.Port.Should().Be(0);
             config.ApplicationLogging.EnableDetailedLogging.Should().BeTrue();
         }
 

@@ -21,12 +21,24 @@ namespace AisToN2K.Services
         public int TotalMessagesSent { get; private set; }
         public int TotalBytesSent { get; private set; }
 
-        public TcpServer(string host = "0.0.0.0", int port = 2000, bool debugMode = false)
+        public TcpServer(string host, int port, bool debugMode = false)
         {
-            _host = host;
+            _host = host ?? throw new ArgumentNullException(nameof(host));
             _port = port;
             _debugMode = debugMode;
             _clients = new ConcurrentDictionary<string, ClientConnection>();
+
+            // Validate port range
+            if (port <= 0 || port > 65535)
+            {
+                throw new ArgumentOutOfRangeException(nameof(port), $"Port must be between 1 and 65535, got: {port}");
+            }
+
+            // Validate host
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                throw new ArgumentException("Host cannot be null or empty", nameof(host));
+            }
         }
 
         public async Task<bool> StartAsync()

@@ -123,6 +123,20 @@ namespace AisToN2K
                 Console.WriteLine($"🔌 TCP Server: {(_config.Network.EnableTcp ? $"Enabled on {_config.Network.Tcp.Host}:{_config.Network.Tcp.Port}" : "Disabled")}");
                 Console.WriteLine($"📡 UDP Broadcast: {(_config.Network.EnableUdp ? $"Enabled to {_config.Network.Udp.Host}:{_config.Network.Udp.Port}" : "Disabled")}");
 
+                // Validate configuration
+                var validationErrors = _config.Validate();
+                if (validationErrors.Any())
+                {
+                    Console.WriteLine("❌ Configuration validation failed:");
+                    foreach (var error in validationErrors)
+                    {
+                        Console.WriteLine($"   • {error}");
+                    }
+                    Console.WriteLine();
+                    Console.WriteLine("Please check your appsettings.json file and ensure all required network configuration is provided.");
+                    return false;
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -148,29 +162,49 @@ namespace AisToN2K
 
         private static async Task StartServersAsync()
         {
-            // Start TCP server if enabled
-            if (_config!.Network.EnableTcp)
+            try
             {
-                _tcpServer = new TcpServer(_config.Network.Tcp.Host, _config.Network.Tcp.Port, _debugMode);
-                var tcpStarted = await _tcpServer.StartAsync();
-                if (!tcpStarted)
+                // Start TCP server if enabled
+                if (_config!.Network.EnableTcp)
                 {
-                    Console.WriteLine("⚠️ TCP server failed to start");
+                    _tcpServer = new TcpServer(_config.Network.Tcp.Host, _config.Network.Tcp.Port, _debugMode);
+                    var tcpStarted = await _tcpServer.StartAsync();
+                    if (!tcpStarted)
+                    {
+                        Console.WriteLine("❌ TCP server failed to start - check port availability and configuration");
+                        throw new InvalidOperationException("Failed to start TCP server");
+                    }
                 }
-            }
 
-            // Start UDP server if enabled
-            if (_config.Network.EnableUdp)
+                // Start UDP server if enabled
+                if (_config.Network.EnableUdp)
+                {
+                    _udpServer = new UdpServer(_config.Network.Udp.Host, _config.Network.Udp.Port);
+                    var udpStarted = await _udpServer.StartAsync();
+                    if (!udpStarted)
+                    {
+                        Console.WriteLine("❌ UDP server failed to start - check port availability and configuration");
+                        throw new InvalidOperationException("Failed to start UDP server");
+                    }
+                }
+
+                Console.WriteLine("✅ Network servers started");
+            }
+            catch (ArgumentOutOfRangeException ex)
             {
-                _udpServer = new UdpServer(_config.Network.Udp.Host, _config.Network.Udp.Port);
-                var udpStarted = await _udpServer.StartAsync();
-                if (!udpStarted)
-                {
-                    Console.WriteLine("⚠️ UDP server failed to start");
-                }
+                Console.WriteLine($"❌ Invalid port configuration: {ex.Message}");
+                throw;
             }
-
-            Console.WriteLine("✅ Network servers started");
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"❌ Invalid network configuration: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Failed to start network servers: {ex.Message}");
+                throw;
+            }
         }
 
         private static async Task StartAisStreamingAsync()
