@@ -71,7 +71,13 @@ namespace AisToN2K
 
         private static async Task RunWebModeAsync(string[] args)
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            {
+                Args = args,
+                // Use the directory containing the csproj file as content root
+                ContentRootPath = Directory.GetCurrentDirectory(),
+                WebRootPath = "wwwroot"
+            });
             
             // Load configuration
             var config = await LoadConfigurationAsync();
@@ -90,9 +96,9 @@ namespace AisToN2K
             
             var app = builder.Build();
             
-            // Serve static files
-            app.UseStaticFiles();
+            // Serve static files - order matters!
             app.UseDefaultFiles();
+            app.UseStaticFiles();
             
             // API Endpoints
             app.MapGet("/api/status", () =>
