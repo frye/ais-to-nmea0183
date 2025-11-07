@@ -8,6 +8,8 @@ namespace AisToN2K.Services
     /// </summary>
     public class ServiceManager : IDisposable
     {
+        private const int WEBSOCKET_RECONNECT_DELAY_MS = 1000;
+        
         private AppConfig _config;
         private AisWebSocketService? _webSocketService;
         private Nmea0183Converter? _converter;
@@ -182,7 +184,7 @@ namespace AisToN2K.Services
             if (_webSocketService != null && _webSocketService.IsConnected)
             {
                 await StopWebSocketAsync();
-                await Task.Delay(1000); // Give it a moment
+                await Task.Delay(WEBSOCKET_RECONNECT_DELAY_MS); // Give it a moment
                 await StartWebSocketAsync();
                 StatusChanged?.Invoke(this, "Configuration updated and WebSocket reconnected");
             }
@@ -273,9 +275,10 @@ namespace AisToN2K.Services
                 {
                     _statistics?.PrintSummary();
 
-                    StopWebSocketAsync().Wait(TimeSpan.FromSeconds(5));
-                    StopTcpServerAsync().Wait(TimeSpan.FromSeconds(2));
-                    StopUdpServerAsync().Wait(TimeSpan.FromSeconds(1));
+                    // Use GetAwaiter().GetResult() to avoid potential deadlocks
+                    StopWebSocketAsync().GetAwaiter().GetResult();
+                    StopTcpServerAsync().GetAwaiter().GetResult();
+                    StopUdpServerAsync().GetAwaiter().GetResult();
 
                     _statistics?.Dispose();
                 }

@@ -508,7 +508,7 @@
             entry.textContent = `[${timestamp}] ${message}`;
             
             // Remove "Waiting for activity..." if it exists
-            if (logContainer.firstChild?.textContent.includes('Waiting for activity')) {
+            if (logContainer.firstChild && logContainer.firstChild.textContent.includes('Waiting for activity')) {
                 logContainer.innerHTML = '';
             }
             
