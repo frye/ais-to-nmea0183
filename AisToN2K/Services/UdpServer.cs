@@ -105,10 +105,14 @@ namespace AisToN2K.Services
             {
                 try
                 {
-                    var stopTask = StopAsync();
-                    if (!stopTask.Wait(1000)) // Wait up to 1 second for graceful shutdown
+                    // Avoid duplicate stop log if already stopped
+                    if (_isRunning)
                     {
-                        Console.WriteLine("⚠️ UDP server dispose timed out");
+                        var stopTask = StopAsync();
+                        if (!stopTask.Wait(1000)) // Wait up to 1 second for graceful shutdown
+                        {
+                            Console.WriteLine("⚠️ UDP server dispose timed out");
+                        }
                     }
                 }
                 catch (Exception ex)

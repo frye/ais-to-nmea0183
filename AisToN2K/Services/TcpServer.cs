@@ -324,11 +324,14 @@ namespace AisToN2K.Services
             {
                 try
                 {
-                    // Use shorter timeout for dispose
-                    var stopTask = StopAsync();
-                    if (!stopTask.Wait(2000)) // Wait up to 2 seconds for graceful shutdown
+                    // Only attempt graceful stop if still running to avoid duplicate stop log
+                    if (_isRunning)
                     {
-                        Console.WriteLine("⚠️ TCP server dispose timed out");
+                        var stopTask = StopAsync();
+                        if (!stopTask.Wait(2000)) // Wait up to 2 seconds for graceful shutdown
+                        {
+                            Console.WriteLine("⚠️ TCP server dispose timed out");
+                        }
                     }
                 }
                 catch (Exception ex)
