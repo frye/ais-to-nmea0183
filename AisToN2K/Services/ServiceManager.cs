@@ -162,7 +162,8 @@ namespace AisToN2K.Services
                 _tcpServer.Dispose();
                 _tcpServer = null;
                 IsTcpServerRunning = false;
-                StatusChanged?.Invoke(this, "TCP server stopped");
+                // Removed duplicate TCP stop log (server already logs)
+                // StatusChanged?.Invoke(this, "TCP server stopped");
             }
         }
 
@@ -219,7 +220,8 @@ namespace AisToN2K.Services
                 _udpServer.Dispose();
                 _udpServer = null;
                 IsUdpServerRunning = false;
-                StatusChanged?.Invoke(this, "UDP server stopped");
+                // Removed duplicate UDP stop log (server already logs)
+                // StatusChanged?.Invoke(this, "UDP server stopped");
             }
         }
 
