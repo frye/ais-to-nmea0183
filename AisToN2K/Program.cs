@@ -25,6 +25,7 @@ namespace AisToN2K
             
             _debugMode = args.Contains("--debug") || args.Contains("-d");
             bool webMode = args.Contains("--web") || args.Contains("-w");
+            bool externalAccess = args.Contains("--public") || args.Contains("--external");
             
             Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
             Console.WriteLine("===============================");
@@ -47,9 +48,10 @@ namespace AisToN2K
             Console.WriteLine("Usage: dotnet run [options]");
             Console.WriteLine();
             Console.WriteLine("Options:");
-            Console.WriteLine("  -w, --web      Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
-            Console.WriteLine("  -d, --debug    Enable debug mode (shows all received and broadcast messages)");
-            Console.WriteLine("  -h, --help     Show this help message");
+            Console.WriteLine("  -w, --web         Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
+            Console.WriteLine("  -d, --debug       Enable debug mode (shows all received and broadcast messages)");
+            Console.WriteLine("  -h, --help        Show this help message");
+            Console.WriteLine("  --public, --external  Bind web UI to 0.0.0.0 for external subnet access (use with --web)");
             Console.WriteLine();
             Console.WriteLine("Console mode (default):");
             Console.WriteLine("  • Auto-starts all configured services");
@@ -92,6 +94,7 @@ namespace AisToN2K
 
         private static async Task RunWebModeAsync(string[] args)
         {
+            bool externalAccess = args.Contains("--public") || args.Contains("--external");
             // Compute project root from build output (bin/Debug/net9.0) for static file serving
             var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -113,7 +116,8 @@ namespace AisToN2K
                 Console.WriteLine($"❌ Web UI port {webPort} is already in use. Set AIS_WEB_PORT to a free port or stop conflicting process.");
                 Environment.Exit(1);
             }
-            builder.WebHost.UseUrls($"http://localhost:{webPort}");
+            var bindHost = externalAccess ? "0.0.0.0" : "localhost";
+            builder.WebHost.UseUrls($"http://{bindHost}:{webPort}");
             
             // Load configuration
             var config = await LoadConfigurationAsync();
@@ -265,7 +269,12 @@ namespace AisToN2K
             });
             
             Console.WriteLine($"✅ Web UI mode enabled");
-            Console.WriteLine($"🌐 Open browser to: http://localhost:{GetConfiguredWebPortOrDefault()}");
+            var displayHost = externalAccess ? "0.0.0.0" : "localhost";
+            Console.WriteLine($"🌐 Open browser to: http://{displayHost}:{GetConfiguredWebPortOrDefault()}");
+            if (externalAccess)
+            {
+                Console.WriteLine("⚠️ External access enabled - ensure you trust the network and have set any necessary firewall rules.");
+            }
             Console.WriteLine($"📱 Press Ctrl+C to stop...");
             
             await app.RunAsync();
