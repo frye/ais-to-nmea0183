@@ -1,6 +1,6 @@
 # AIS to NMEA 0183 Converter
 
-A .NET Core console application that fetches real-time AIS (Automatic Identification System) data from APIs and displays vessel information with geographic filtering.
+A .NET Core application that fetches real-time AIS (Automatic Identification System) data from APIs and converts it to NMEA 0183 format for marine navigation software.
 
 ## Overview
 
@@ -8,25 +8,30 @@ This application implements a simplified real-time AIS monitoring system based o
 
 ## Features
 
+- **🌐 Web UI**: Modern web interface for service management and monitoring
 - **Real-time AIS Streaming**: WebSocket connection to AIS Stream for live vessel data
 - **Geographic Filtering**: Configurable bounding box for area-specific monitoring
+- **NMEA 0183 Conversion**: Converts AIS data to industry-standard NMEA format
+- **Network Broadcasting**: TCP and UDP servers for OpenCPN and other marine software
 - **Secure Configuration**: Multiple secure methods for API key storage
-- **Real-time Display**: Live vessel data including position, speed, course, and heading
+- **Dual Mode Operation**: Console mode (auto-start) or Web UI mode (manual control)
 
 ## Architecture
 
 ### Core Components
 
+- **ServiceManager**: Lifecycle management for all services (WebSocket, TCP, UDP)
 - **AisWebSocketService**: Real-time WebSocket streaming with geographic filtering
-- **SecureConfigurationService**: Secure API key management
 - **Nmea0183Converter**: Converts AIS data to NMEA 0183 format
 - **TcpServer/UdpServer**: Network broadcasting for marine navigation software
-- **Models**: Data structures for AIS vessel data
+- **SecureConfigurationService**: Secure API key management
+- **Web UI**: Browser-based control panel for service management
 
 ## Prerequisites
 
 - .NET 9.0 or later
 - AIS Stream API access (API key required)
+- Modern web browser (for Web UI mode)
 
 ## Installation
 
@@ -144,6 +149,56 @@ Only use `appsettings.json` for non-sensitive defaults.
 
 ## Usage
 
+### Web UI Mode (Recommended)
+
+Launch the web interface for easy service management:
+
+```bash
+dotnet run -- --web
+```
+
+Then open your browser to **http://localhost:5000**
+
+**Web UI Features:**
+- 🎛️ Start/Stop WebSocket, TCP, and UDP services independently
+- 📊 Real-time statistics and status monitoring
+- 🗺️ Configure bounding box area directly in UI
+- 📝 Activity log showing recent events
+- 🔄 Auto-refresh status every 2 seconds
+
+![Web UI Screenshot](https://github.com/user-attachments/assets/a8e2b630-3cf8-4cfc-a710-8559cb6bd623)
+
+### Console Mode (Auto-Start)
+
+Run the application in traditional console mode with automatic service startup:
+
+```bash
+dotnet run
+```
+
+**Console Mode Features:**
+- ✅ Auto-starts all configured services (WebSocket, TCP, UDP)
+- ✅ Runs until Ctrl+C is pressed
+- ✅ Perfect for headless servers and automation
+
+### Debug Mode
+
+Enable detailed logging for troubleshooting:
+
+```bash
+# Console mode with debug
+dotnet run -- --debug
+
+# Web UI mode with debug
+dotnet run -- --web --debug
+```
+
+**Debug Features:**
+- Shows all received AIS messages
+- Shows all converted NMEA 0183 messages  
+- Statistics reports every 30 seconds
+- Detailed message type breakdowns
+
 ### First Time Setup
 
 1. **Configure API Key Securely:**
@@ -157,20 +212,20 @@ Only use `appsettings.json` for non-sensitive defaults.
 
 2. **Run the Application:**
    ```bash
+   # Web UI mode (recommended for beginners)
+   dotnet run -- --web
+   
+   # Console mode (for automated deployments)
    dotnet run
    ```
 
-### Real-time WebSocket Mode (Default)
+### Real-time WebSocket Mode
 
-The application automatically connects to the AIS Stream WebSocket for real-time vessel data.
+The application connects to the AIS Stream WebSocket for real-time vessel data.
 
 **Features:**
 - ✅ Real-time vessel position updates
 - ✅ Geographic bounding box filtering
-- ✅ Low latency data processing
-- ✅ Automatic reconnection on failure
-- ✅ Event-driven processing
-
 - ✅ Low latency data processing
 - ✅ Automatic reconnection on failure
 - ✅ Event-driven processing
@@ -181,21 +236,43 @@ The application processes AIS data in real-time, converting it to NMEA 0183 form
 
 **Key Processing Features:**
 - ✅ Real-time AIS to NMEA 0183 conversion
-- ✅ TCP server for multiple client connections (port 2000)
-- ✅ UDP broadcasting for simple integration (port 2001)
+- ✅ TCP server for multiple client connections (default port 2004)
+- ✅ UDP broadcasting for simple integration (default port 2005)
 - ✅ Comprehensive statistics and logging
 - ✅ Message type classification and tracking
 
-## Usage
+## Integration with Marine Software
 
-### Simulation Mode
+### OpenCPN Integration
 
-The application runs in simulation mode and outputs NMEA 0183 messages to the console and broadcasts them via TCP/UDP servers.
+1. Start the application (Web UI or Console mode)
+2. In OpenCPN, go to Options → Connections
+3. Add a new connection:
+   - **Type**: Network (TCP)
+   - **Address**: localhost (or server IP)
+   - **Port**: 2004 (or your configured TCP port)
+   - **Protocol**: NMEA 0183
+4. Enable the connection and you should see AIS targets appear
 
-### Production Mode
+### Other Marine Software
+
+The application broadcasts NMEA 0183 sentences via:
+- **TCP**: Port 2004 (configurable) - for reliable connections
+- **UDP**: Port 2005 (configurable) - for simple broadcast integration
+
+## Command Line Options
+
+```bash
+Usage: dotnet run [options]
+
+Options:
+  -w, --web      Enable web UI mode (default: http://localhost:5000)
+  -d, --debug    Enable debug mode (shows all messages)
+  -h, --help     Show help message
+```
 
 With marine navigation software:
-1. Connect to the TCP server (default port 2002) or UDP broadcast (default port 2003)
+1. Connect to the TCP server (default port 2004) or UDP broadcast (default port 2005)
 2. Configure your navigation software to receive NMEA 0183 data from these ports
 3. The application will stream live AIS data converted to NMEA 0183 format
 
