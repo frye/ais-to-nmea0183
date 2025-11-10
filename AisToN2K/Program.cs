@@ -131,6 +131,28 @@ namespace AisToN2K
             builder.Services.AddSingleton(_serviceManager);
             
             var app = builder.Build();
+
+            // Ensure graceful shutdown of background services in web mode
+            var lifetime = app.Lifetime;
+            bool servicesDisposed = false;
+            lifetime.ApplicationStopping.Register(() =>
+            {
+                if (!servicesDisposed && _serviceManager != null)
+                {
+                    try
+                    {
+                        _serviceManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠️ Error disposing services during web shutdown: {ex.Message}");
+                    }
+                    finally
+                    {
+                        servicesDisposed = true;
+                    }
+                }
+            });
             
             // Serve static files - order matters!
             app.UseDefaultFiles();
