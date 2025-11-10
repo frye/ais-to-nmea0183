@@ -188,9 +188,21 @@ namespace AisToN2K
                     }
                     return Results.Json(new { success = false, message = "Invalid configuration" });
                 }
-                catch (Exception ex)
+                catch (System.Text.Json.JsonException jsonEx)
                 {
-                    return Results.Json(new { success = false, message = ex.Message });
+                    return Results.Json(new { success = false, message = "JSON parse error: " + jsonEx.Message });
+                }
+                catch (InvalidOperationException invOpEx)
+                {
+                    return Results.Json(new { success = false, message = "Invalid operation: " + invOpEx.Message });
+                }
+                catch (ArgumentException argEx)
+                {
+                    return Results.Json(new { success = false, message = "Argument error: " + argEx.Message });
+                }
+                catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
+                {
+                    return Results.Json(new { success = false, message = "Unexpected error: " + ex.Message });
                 }
             });
             
@@ -241,7 +253,10 @@ namespace AisToN2K
             }
             finally
             {
-                _serviceManager?.Dispose();
+                if (_serviceManager != null)
+                {
+                    await _serviceManager.DisposeAsync();
+                }
             }
         }
 
@@ -307,7 +322,10 @@ namespace AisToN2K
         {
             e.Cancel = true; // Prevent immediate termination
             Console.WriteLine("\n🛑 Shutting down gracefully...");
-            _serviceManager?.Dispose();
+            if (_serviceManager != null)
+            {
+                await _serviceManager.DisposeAsync();
+            }
             Environment.Exit(0);
         }
     }

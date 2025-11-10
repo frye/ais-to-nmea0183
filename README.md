@@ -272,7 +272,7 @@ Options:
 ```
 
 With marine navigation software:
-1. Connect to the TCP server (default port 2002) or UDP broadcast (default port 2003)
+1. Connect to the TCP server (default port 2004) or UDP broadcast (default port 2005)
 2. Configure your navigation software to receive NMEA 0183 data from these ports
 3. The application will stream live AIS data converted to NMEA 0183 format
 

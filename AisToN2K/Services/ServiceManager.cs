@@ -6,11 +6,11 @@ namespace AisToN2K.Services
     /// <summary>
     /// Manages the lifecycle of all AIS services (WebSocket, TCP, UDP, Converter, Statistics)
     /// </summary>
-    public class ServiceManager : IDisposable
+    public class ServiceManager : IAsyncDisposable, IDisposable
     {
         private const int WEBSOCKET_RECONNECT_DELAY_MS = 1000;
         
-        private AppConfig _config;
+        private readonly AppConfig _config;
         private AisWebSocketService? _webSocketService;
         private Nmea0183Converter? _converter;
         private TcpServer? _tcpServer;
@@ -72,7 +72,25 @@ namespace AisToN2K.Services
                 }
                 return connected;
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
+            {
+                StatusChanged?.Invoke(this, $"WebSocket connection failed (argument error): {ex.Message}");
+                _statistics?.IncrementError();
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                StatusChanged?.Invoke(this, $"WebSocket connection failed (invalid operation): {ex.Message}");
+                _statistics?.IncrementError();
+                return false;
+            }
+            catch (System.Net.WebSockets.WebSocketException ex)
+            {
+                StatusChanged?.Invoke(this, $"WebSocket connection failed (websocket error): {ex.Message}");
+                _statistics?.IncrementError();
+                return false;
+            }
+            catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
             {
                 StatusChanged?.Invoke(this, $"WebSocket connection failed: {ex.Message}");
                 _statistics?.IncrementError();
@@ -114,7 +132,22 @@ namespace AisToN2K.Services
                 }
                 return started;
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
+            {
+                StatusChanged?.Invoke(this, $"TCP server failed to start (argument error): {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                StatusChanged?.Invoke(this, $"TCP server failed to start (invalid operation): {ex.Message}");
+                return false;
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                StatusChanged?.Invoke(this, $"TCP server failed to start (socket error): {ex.Message}");
+                return false;
+            }
+            catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
             {
                 StatusChanged?.Invoke(this, $"TCP server failed to start: {ex.Message}");
                 return false;
@@ -156,7 +189,22 @@ namespace AisToN2K.Services
                 }
                 return started;
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
+            {
+                StatusChanged?.Invoke(this, $"UDP server failed to start (argument error): {ex.Message}");
+                return false;
+            }
+            catch (InvalidOperationException ex)
+            {
+                StatusChanged?.Invoke(this, $"UDP server failed to start (invalid operation): {ex.Message}");
+                return false;
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                StatusChanged?.Invoke(this, $"UDP server failed to start (socket error): {ex.Message}");
+                return false;
+            }
+            catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
             {
                 StatusChanged?.Invoke(this, $"UDP server failed to start: {ex.Message}");
                 return false;
@@ -209,7 +257,7 @@ namespace AisToN2K.Services
                 }
 
                 // Show occasional progress indicators when not in debug mode
-                if (!_debugMode && _statistics!.TotalMessagesReceived % 10 == 0)
+                if (!_debugMode && _statistics != null && _statistics.TotalMessagesReceived % 10 == 0)
                 {
                     Console.WriteLine($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {vesselName})");
                 }
@@ -260,14 +308,24 @@ namespace AisToN2K.Services
                     }
                 }
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"❌ Error processing vessel data (argument error): {ex.Message}");
+                _statistics?.IncrementError();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"❌ Error processing vessel data (invalid operation): {ex.Message}");
+                _statistics?.IncrementError();
+            }
+            catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
             {
                 Console.WriteLine($"❌ Error processing vessel data: {ex.Message}");
                 _statistics?.IncrementError();
             }
         }
 
-        public void Dispose()
+        public async ValueTask DisposeAsync()
         {
             if (!_disposed)
             {
@@ -275,14 +333,42 @@ namespace AisToN2K.Services
                 {
                     _statistics?.PrintSummary();
 
-                    // Use GetAwaiter().GetResult() to avoid potential deadlocks
+                    await StopWebSocketAsync();
+                    await StopTcpServerAsync();
+                    await StopUdpServerAsync();
+
+                    _statistics?.Dispose();
+                }
+                catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
+                {
+                    Console.WriteLine($"⚠️ Error during ServiceManager disposal: {ex.Message}");
+                }
+                finally
+                {
+                    _disposed = true;
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            // Synchronous dispose - prefer DisposeAsync when possible
+            // This is provided for compatibility with IDisposable pattern
+            if (!_disposed)
+            {
+                try
+                {
+                    _statistics?.PrintSummary();
+
+                    // Use GetAwaiter().GetResult() for synchronous disposal
+                    // Note: This can potentially cause deadlocks in some contexts
                     StopWebSocketAsync().GetAwaiter().GetResult();
                     StopTcpServerAsync().GetAwaiter().GetResult();
                     StopUdpServerAsync().GetAwaiter().GetResult();
 
                     _statistics?.Dispose();
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
                     Console.WriteLine($"⚠️ Error during ServiceManager disposal: {ex.Message}");
                 }
