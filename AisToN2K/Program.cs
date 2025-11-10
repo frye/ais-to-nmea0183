@@ -47,7 +47,7 @@ namespace AisToN2K
             Console.WriteLine("Usage: dotnet run [options]");
             Console.WriteLine();
             Console.WriteLine("Options:");
-            Console.WriteLine("  -w, --web      Enable web UI mode (default: http://localhost:5000)");
+            Console.WriteLine("  -w, --web      Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
             Console.WriteLine("  -d, --debug    Enable debug mode (shows all received and broadcast messages)");
             Console.WriteLine("  -h, --help     Show this help message");
             Console.WriteLine();
@@ -57,7 +57,7 @@ namespace AisToN2K
             Console.WriteLine();
             Console.WriteLine("Web mode:");
             Console.WriteLine("  • Provides web UI for service control");
-            Console.WriteLine("  • Access at http://localhost:5000");
+            Console.WriteLine("  • Access at http://localhost:8080 (or configured port)");
             Console.WriteLine("  • Manually start/stop services via UI");
             Console.WriteLine("  • Configure bounding box via UI");
             Console.WriteLine();
@@ -69,15 +69,51 @@ namespace AisToN2K
             Console.WriteLine();
         }
 
+        private static int GetConfiguredWebPortOrDefault()
+        {
+            var env = Environment.GetEnvironmentVariable("AIS_WEB_PORT");
+            return (!string.IsNullOrEmpty(env) && int.TryParse(env, out var p) && p > 0 && p < 65536) ? p : 8080;
+        }
+
+        private static bool IsPortInUse(int port)
+        {
+            try
+            {
+                var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+                listener.Start();
+                listener.Stop();
+                return false;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
         private static async Task RunWebModeAsync(string[] args)
         {
+            // Compute project root from build output (bin/Debug/net9.0) for static file serving
+            var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
                 Args = args,
-                // Use the directory containing the csproj file as content root
-                ContentRootPath = Directory.GetCurrentDirectory(),
-                WebRootPath = "wwwroot"
+                ContentRootPath = projectRoot,
+                WebRootPath = Path.Combine(projectRoot, "wwwroot")
             });
+            // Determine web UI port (configurable via env AIS_WEB_PORT) default 8080
+            var webPortEnv = Environment.GetEnvironmentVariable("AIS_WEB_PORT");
+            int webPort = 8080;
+            if (!string.IsNullOrEmpty(webPortEnv) && int.TryParse(webPortEnv, out var parsed) && parsed > 0 && parsed < 65536)
+            {
+                webPort = parsed;
+            }
+            // Pre-flight port availability check (only in web mode)
+            if (IsPortInUse(webPort))
+            {
+                Console.WriteLine($"❌ Web UI port {webPort} is already in use. Set AIS_WEB_PORT to a free port or stop conflicting process.");
+                Environment.Exit(1);
+            }
+            builder.WebHost.UseUrls($"http://localhost:{webPort}");
             
             // Load configuration
             var config = await LoadConfigurationAsync();
@@ -207,7 +243,7 @@ namespace AisToN2K
             });
             
             Console.WriteLine($"✅ Web UI mode enabled");
-            Console.WriteLine($"🌐 Open browser to: http://localhost:5000");
+            Console.WriteLine($"🌐 Open browser to: http://localhost:{GetConfiguredWebPortOrDefault()}");
             Console.WriteLine($"📱 Press Ctrl+C to stop...");
             
             await app.RunAsync();
