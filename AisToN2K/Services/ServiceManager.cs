@@ -17,7 +17,9 @@ namespace AisToN2K.Services
         private TcpServer? _tcpServer;
         private UdpServer? _udpServer;
         private StatisticsService? _statistics;
+        private DebugFileLogger? _fileLogger;
         private readonly bool _debugMode;
+        private readonly string? _logPathOverride;
         private bool _disposed = false;
 
         public bool IsWebSocketConnected => _webSocketService?.IsConnected ?? false;
@@ -25,6 +27,7 @@ namespace AisToN2K.Services
         public bool IsUdpServerRunning { get; private set; }
         public AppConfig CurrentConfig => _config;
         public StatisticsService? Statistics => _statistics;
+        public DebugFileLogger? FileLogger => _fileLogger;
 
         /// <summary>
         /// Log output target. When set, Console.WriteLines are redirected here (for TUI mode).
@@ -57,10 +60,11 @@ namespace AisToN2K.Services
         /// </summary>
         public event EventHandler<AisData>? VesselDataForTracking;
 
-        public ServiceManager(AppConfig config, bool debugMode = false)
+        public ServiceManager(AppConfig config, bool debugMode = false, string? logPathOverride = null)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _debugMode = debugMode;
+            _logPathOverride = logPathOverride;
         }
 
         private void Log(string message)
@@ -80,6 +84,14 @@ namespace AisToN2K.Services
             _converter = new Nmea0183Converter(_debugMode);
             _converter.LogOutput = _logOutput;
 
+            // Initialize debug file logger (only active in debug mode)
+            var logPath = _logPathOverride ?? _config.ApplicationLogging.LogPath ?? "";
+            _fileLogger = new DebugFileLogger(logPath, _debugMode);
+            if (_debugMode)
+            {
+                Log($"📁 Debug file logging to: {Path.GetFullPath(_fileLogger.LogDirectory)}");
+            }
+
             StatusChanged?.Invoke(this, "Services initialized");
         }
 
@@ -95,6 +107,7 @@ namespace AisToN2K.Services
                 // Initialize WebSocket service
                 _webSocketService = new AisWebSocketService(_config.WebSocketUrl, _config.ApiKey, _debugMode);
                 _webSocketService.LogOutput = _logOutput;
+                _webSocketService.FileLogger = _fileLogger;
                 _webSocketService.VesselDataReceived += OnVesselDataReceived;
 
                 var boundingBox = new double[]
@@ -297,6 +310,9 @@ namespace AisToN2K.Services
 
                 _statistics?.IncrementMessageReceived(messageType);
 
+                // Debug file logging for received WebSocket data
+                _fileLogger?.LogWebSocket(messageType, vesselData.Mmsi, vesselName, latitude, longitude);
+
                 // Debug logging for received vessel data
                 if (_debugMode)
                 {
@@ -342,6 +358,8 @@ namespace AisToN2K.Services
                     if (tcpSent)
                     {
                         _statistics?.IncrementMessageBroadcast();
+                        _fileLogger?.LogTcp(vesselData.Mmsi, nmeaMessage);
+                        _fileLogger?.LogTcpRaw(nmeaMessage);
                     }
                 }
 
@@ -352,6 +370,8 @@ namespace AisToN2K.Services
                     if (udpSent)
                     {
                         _statistics?.IncrementMessageBroadcast();
+                        _fileLogger?.LogUdp(vesselData.Mmsi, nmeaMessage);
+                        _fileLogger?.LogUdpRaw(nmeaMessage);
                     }
                 }
             }
@@ -385,6 +405,7 @@ namespace AisToN2K.Services
                     await StopUdpServerAsync();
 
                     _statistics?.Dispose();
+                    _fileLogger?.Dispose();
                 }
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
@@ -411,6 +432,7 @@ namespace AisToN2K.Services
                     StopUdpServerAsync().GetAwaiter().GetResult();
 
                     _statistics?.Dispose();
+                    _fileLogger?.Dispose();
                 }
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {

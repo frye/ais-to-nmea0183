@@ -109,5 +109,9 @@ namespace AisToN2K.Configuration
         public bool EnableDetailedLogging { get; set; } = true;
         public bool LogNmeaMessages { get; set; } = true;
         public int StatisticsReportingIntervalMinutes { get; set; } = 1;
+        /// <summary>
+        /// Directory for debug log files. Empty or null defaults to "./log/".
+        /// </summary>
+        public string LogPath { get; set; } = "";
     }
 }

@@ -18,6 +18,7 @@ namespace AisToN2K.Services
         private int _debugMessageCount = 0;
         
         public ILogOutput? LogOutput { get; set; }
+        public DebugFileLogger? FileLogger { get; set; }
         private void Log(string message)
         {
             if (LogOutput != null)
@@ -219,6 +220,8 @@ namespace AisToN2K.Services
                 {
                     aisStreamMessage = JsonConvert.DeserializeObject<AisStreamMessage>(message);
                     if (_debugMode) Log($"🔍 JSON deserialized successfully");
+                    // Log raw JSON to file
+                    FileLogger?.LogWebSocketRaw(message);
                 }
                 catch (Exception jsonEx)
                 {

@@ -14,6 +14,7 @@ namespace AisToN2K
         private static ServiceManager? _serviceManager;
         private static AppConfig? _config;
         private static bool _debugMode = false;
+        private static string? _logPathOverride = null;
         
         static async Task Main(string[] args)
         {
@@ -31,6 +32,13 @@ namespace AisToN2K
             bool noWs = args.Contains("--no-ws");
             bool noTcp = args.Contains("--no-tcp");
             bool noUdp = args.Contains("--no-udp");
+            
+            // Parse --log-path <directory>
+            var logPathIdx = Array.IndexOf(args, "--log-path");
+            if (logPathIdx >= 0 && logPathIdx < args.Length - 1)
+            {
+                _logPathOverride = args[logPathIdx + 1];
+            }
             
             if (webMode)
             {
@@ -60,6 +68,7 @@ namespace AisToN2K
             Console.WriteLine("Options:");
             Console.WriteLine("  -w, --web         Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
             Console.WriteLine("  -d, --debug       Enable debug mode (shows all received and broadcast messages)");
+            Console.WriteLine("  --log-path <dir>  Override log file directory (default: ./log/ or ApplicationLogging.LogPath)");
             Console.WriteLine("  -h, --help        Show this help message");
             Console.WriteLine("  --headless        Run in headless console mode (no TUI, log streamed to stdout)");
             Console.WriteLine("  --no-ws           Don't auto-start WebSocket connection");
@@ -104,7 +113,7 @@ namespace AisToN2K
                     return;
                 }
 
-                var tuiApp = new TuiApp(config, _debugMode, autoStartWs, autoStartTcp, autoStartUdp);
+                var tuiApp = new TuiApp(config, _debugMode, autoStartWs, autoStartTcp, autoStartUdp, _logPathOverride);
                 await tuiApp.RunAsync();
             }
             catch (Exception ex)
@@ -171,7 +180,7 @@ namespace AisToN2K
             _config = config;
             
             // Initialize ServiceManager
-            _serviceManager = new ServiceManager(_config, _debugMode);
+            _serviceManager = new ServiceManager(_config, _debugMode, _logPathOverride);
             await _serviceManager.InitializeAsync();
             
             // Add services to the container
@@ -341,7 +350,7 @@ namespace AisToN2K
                 _config = config;
 
                 // Initialize ServiceManager
-                _serviceManager = new ServiceManager(_config, _debugMode);
+                _serviceManager = new ServiceManager(_config, _debugMode, _logPathOverride);
                 await _serviceManager.InitializeAsync();
 
                 // Start all services automatically in console mode

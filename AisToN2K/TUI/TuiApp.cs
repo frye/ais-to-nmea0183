@@ -52,20 +52,22 @@ namespace AisToN2K.TUI
         private bool _autoStartWs = true;
         private bool _autoStartTcp = true;
         private bool _autoStartUdp = true;
+        private readonly string? _logPathOverride;
 
-        public TuiApp(AppConfig config, bool debugMode, bool autoStartWs = true, bool autoStartTcp = true, bool autoStartUdp = true)
+        public TuiApp(AppConfig config, bool debugMode, bool autoStartWs = true, bool autoStartTcp = true, bool autoStartUdp = true, string? logPathOverride = null)
         {
             _config = config;
             _debugMode = debugMode;
             _autoStartWs = autoStartWs;
             _autoStartTcp = autoStartTcp;
             _autoStartUdp = autoStartUdp;
+            _logPathOverride = logPathOverride;
         }
 
         public async Task RunAsync()
         {
             // Initialize services
-            _serviceManager = new ServiceManager(_config, _debugMode);
+            _serviceManager = new ServiceManager(_config, _debugMode, _logPathOverride);
             await _serviceManager.InitializeAsync();
 
             // Hook vessel data for tracking
