@@ -1,0 +1,239 @@
+using AisToN2K.Models;
+using AisToN2K.Services;
+
+namespace AisToN2K.Tests.Unit
+{
+    public class VesselTrackingServiceTests
+    {
+        private readonly VesselTrackingService _service = new();
+
+        [Fact]
+        public void IsTracking_InitiallyFalse()
+        {
+            _service.IsTracking.Should().BeFalse();
+        }
+
+        [Fact]
+        public void StartTracking_SetsTrackingState()
+        {
+            _service.StartTracking(123456789, "Test Vessel");
+
+            _service.IsTracking.Should().BeTrue();
+            _service.TrackedMmsi.Should().Be(123456789);
+            _service.TrackedVesselName.Should().Be("Test Vessel");
+            _service.TotalDistanceNm.Should().Be(0);
+            _service.TrackingStartTime.Should().NotBeNull();
+        }
+
+        [Fact]
+        public void StopTracking_ClearsState_ReturnsPoints()
+        {
+            _service.StartTracking(123456789, "Test Vessel");
+            var data = CreateAisData(123456789, 48.0, -122.0);
+            _service.ProcessVesselData(data);
+
+            var points = _service.StopTracking();
+
+            _service.IsTracking.Should().BeFalse();
+            _service.TrackedMmsi.Should().BeNull();
+            points.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public void ProcessVesselData_TrackedVessel_AccumulatesPoints()
+        {
+            _service.StartTracking(123456789, "Test Vessel");
+
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0));
+            _service.ProcessVesselData(CreateAisData(123456789, 48.01, -122.01));
+            _service.ProcessVesselData(CreateAisData(123456789, 48.02, -122.02));
+
+            _service.GetTrackPoints().Should().HaveCount(3);
+        }
+
+        [Fact]
+        public void ProcessVesselData_DifferentVessel_IgnoredForTracking()
+        {
+            _service.StartTracking(123456789, "Test Vessel");
+
+            _service.ProcessVesselData(CreateAisData(999999999, 48.0, -122.0));
+
+            _service.GetTrackPoints().Should().BeEmpty();
+        }
+
+        [Fact]
+        public void ProcessVesselData_AccumulatesDistance()
+        {
+            _service.StartTracking(123456789, "Test Vessel");
+
+            // ~0.6 nm apart
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0));
+            _service.ProcessVesselData(CreateAisData(123456789, 48.01, -122.0));
+
+            _service.TotalDistanceNm.Should().BeGreaterThan(0);
+            _service.TotalDistanceNm.Should().BeLessThan(2.0); // Sanity check
+        }
+
+        [Fact]
+        public void ProcessVesselData_UpdatesCurrentSog()
+        {
+            _service.StartTracking(123456789, "Test Vessel");
+
+            var data = CreateAisData(123456789, 48.0, -122.0, sog: 8.5);
+            _service.ProcessVesselData(data);
+
+            _service.CurrentSogKnots.Should().Be(8.5);
+        }
+
+        [Fact]
+        public void RegisterVessel_TracksKnownVessels()
+        {
+            _service.RegisterVessel(123456789, "Vessel A");
+            _service.RegisterVessel(987654321, "Vessel B");
+
+            var known = _service.GetKnownVessels();
+            known.Should().HaveCount(2);
+            known[123456789].Should().Be("Vessel A");
+            known[987654321].Should().Be("Vessel B");
+        }
+
+        [Fact]
+        public void FindVessels_ByMmsi_ReturnsExactMatch()
+        {
+            _service.RegisterVessel(123456789, "Test Vessel");
+
+            var results = _service.FindVessels("123456789");
+
+            results.Should().HaveCount(1);
+            results[0].Mmsi.Should().Be(123456789);
+        }
+
+        [Fact]
+        public void FindVessels_ByName_ReturnsCaseInsensitiveMatch()
+        {
+            _service.RegisterVessel(123456789, "Pacific Explorer");
+            _service.RegisterVessel(987654321, "Pacific Runner");
+            _service.RegisterVessel(111111111, "Atlantic Voyager");
+
+            var results = _service.FindVessels("pacific");
+
+            results.Should().HaveCount(2);
+            results.Select(v => v.Name).Should().Contain("Pacific Explorer");
+            results.Select(v => v.Name).Should().Contain("Pacific Runner");
+        }
+
+        [Fact]
+        public void FindVessels_NoMatch_ReturnsEmpty()
+        {
+            _service.RegisterVessel(123456789, "Test Vessel");
+
+            var results = _service.FindVessels("nonexistent");
+            results.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void HaversineDistance_KnownValues()
+        {
+            // Seattle to Portland: ~145 nm
+            var distance = VesselTrackingService.HaversineDistanceNm(
+                47.6062, -122.3321, // Seattle
+                45.5152, -122.6784  // Portland
+            );
+
+            distance.Should().BeApproximately(128.0, 5.0);
+        }
+
+        [Fact]
+        public void HaversineDistance_SamePoint_ReturnsZero()
+        {
+            var distance = VesselTrackingService.HaversineDistanceNm(48.0, -122.0, 48.0, -122.0);
+            distance.Should().Be(0);
+        }
+
+        [Fact]
+        public void FormatDistance_NauticalUnits()
+        {
+            _service.Units = DisplayUnits.Nautical;
+            _service.StartTracking(123456789, "Test");
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0));
+            _service.ProcessVesselData(CreateAisData(123456789, 48.1, -122.0));
+
+            var formatted = _service.FormatDistance();
+            formatted.Should().EndWith("nm");
+        }
+
+        [Fact]
+        public void FormatDistance_MetricUnits()
+        {
+            _service.Units = DisplayUnits.Metric;
+            _service.StartTracking(123456789, "Test");
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0));
+            _service.ProcessVesselData(CreateAisData(123456789, 48.1, -122.0));
+
+            var formatted = _service.FormatDistance();
+            formatted.Should().EndWith("km");
+        }
+
+        [Fact]
+        public void FormatCurrentSpeed_NauticalUnits()
+        {
+            _service.Units = DisplayUnits.Nautical;
+            _service.StartTracking(123456789, "Test");
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0, sog: 8.5));
+
+            _service.FormatCurrentSpeed().Should().Be("8.5 kn");
+        }
+
+        [Fact]
+        public void FormatCurrentSpeed_MetricUnits()
+        {
+            _service.Units = DisplayUnits.Metric;
+            _service.StartTracking(123456789, "Test");
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0, sog: 8.5));
+
+            _service.FormatCurrentSpeed().Should().Be("15.7 km/h");
+        }
+
+        [Fact]
+        public void FormatCurrentSpeed_NoData_ReturnsNA()
+        {
+            _service.FormatCurrentSpeed().Should().Be("N/A");
+        }
+
+        [Fact]
+        public void ProcessVesselData_AlwaysRegistersVessels()
+        {
+            // Don't start tracking — just process data
+            _service.ProcessVesselData(CreateAisData(123456789, 48.0, -122.0, name: "Vessel A"));
+            _service.ProcessVesselData(CreateAisData(987654321, 48.1, -122.1, name: "Vessel B"));
+
+            var known = _service.GetKnownVessels();
+            known.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public void TrackingUpdated_EventFired_OnStartStop()
+        {
+            int eventCount = 0;
+            _service.TrackingUpdated += (s, e) => eventCount++;
+
+            _service.StartTracking(123456789, "Test");
+            _service.StopTracking();
+
+            eventCount.Should().Be(2);
+        }
+
+        private static AisData CreateAisData(int mmsi, double lat, double lon, double? sog = null, string? name = null)
+        {
+            return new AisData
+            {
+                Mmsi = mmsi,
+                Latitude = lat,
+                Longitude = lon,
+                SpeedOverGround = sog,
+                VesselName = name,
+                Timestamp = DateTime.UtcNow
+            };
+        }
+    }
+}

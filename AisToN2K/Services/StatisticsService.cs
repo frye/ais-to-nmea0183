@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using AisToN2K.Interfaces;
 
 namespace AisToN2K.Services
 {
@@ -14,6 +15,11 @@ namespace AisToN2K.Services
         public int TotalMessagesBroadcast { get; private set; }
         public int TotalErrors { get; private set; }
 
+        /// <summary>
+        /// Log output target. When set, statistics are reported here instead of Console.
+        /// </summary>
+        public ILogOutput? LogOutput { get; set; }
+
         public StatisticsService(bool debugMode = false, int reportingIntervalSeconds = 30)
         {
             _messageTypesCounts = new ConcurrentDictionary<int, int>();
@@ -23,6 +29,14 @@ namespace AisToN2K.Services
             // Report statistics at specified interval (default 30 seconds)
             var interval = TimeSpan.FromSeconds(reportingIntervalSeconds);
             _reportingTimer = new Timer(ReportStatistics, null, interval, interval);
+        }
+
+        private void Log(string message)
+        {
+            if (LogOutput != null)
+                LogOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
         }
 
         public void IncrementMessageReceived(int messageType)
@@ -51,25 +65,25 @@ namespace AisToN2K.Services
             var uptime = DateTime.Now - _startTime;
             var messagesPerMinute = TotalMessagesReceived / Math.Max(1, uptime.TotalMinutes);
 
-            Console.WriteLine($"📊 === STATISTICS REPORT ===");
-            Console.WriteLine($"🕐 Uptime: {uptime:hh\\:mm\\:ss}");
-            Console.WriteLine($"📥 Total Messages Received: {TotalMessagesReceived:N0}");
-            Console.WriteLine($"🔄 Total Messages Converted: {TotalMessagesConverted:N0}");
-            Console.WriteLine($"📤 Total Messages Broadcast: {TotalMessagesBroadcast:N0}");
-            Console.WriteLine($"❌ Total Errors: {TotalErrors:N0}");
-            Console.WriteLine($"📈 Rate: {messagesPerMinute:F1} msg/min");
+            Log($"📊 === STATISTICS REPORT ===");
+            Log($"🕐 Uptime: {uptime:hh\\:mm\\:ss}");
+            Log($"📥 Total Messages Received: {TotalMessagesReceived:N0}");
+            Log($"🔄 Total Messages Converted: {TotalMessagesConverted:N0}");
+            Log($"📤 Total Messages Broadcast: {TotalMessagesBroadcast:N0}");
+            Log($"❌ Total Errors: {TotalErrors:N0}");
+            Log($"📈 Rate: {messagesPerMinute:F1} msg/min");
 
             if (_messageTypesCounts.Any())
             {
-                Console.WriteLine($"📋 Message Types:");
+                Log($"📋 Message Types:");
                 foreach (var kvp in _messageTypesCounts.OrderBy(x => x.Key))
                 {
                     var messageTypeName = GetMessageTypeName(kvp.Key);
-                    Console.WriteLine($"   Type {kvp.Key} ({messageTypeName}): {kvp.Value:N0}");
+                    Log($"   Type {kvp.Key} ({messageTypeName}): {kvp.Value:N0}");
                 }
             }
 
-            Console.WriteLine($"========================");
+            Log($"========================");
         }
 
         public void LogMessageDetails(int messageType, string vesselName, double latitude, double longitude, string nmeaMessage)

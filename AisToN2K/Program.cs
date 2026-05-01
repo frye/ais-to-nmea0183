@@ -1,5 +1,6 @@
 using AisToN2K.Configuration;
 using AisToN2K.Services;
+using AisToN2K.TUI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -25,18 +26,24 @@ namespace AisToN2K
             
             _debugMode = args.Contains("--debug") || args.Contains("-d");
             bool webMode = args.Contains("--web") || args.Contains("-w");
+            bool headlessMode = args.Contains("--headless");
             bool externalAccess = args.Contains("--public") || args.Contains("--external");
-            
-            Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
-            Console.WriteLine("===============================");
             
             if (webMode)
             {
+                Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
+                Console.WriteLine("===============================");
                 await RunWebModeAsync(args);
+            }
+            else if (headlessMode)
+            {
+                Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
+                Console.WriteLine("===============================");
+                await RunConsoleModeAsync(args);
             }
             else
             {
-                await RunConsoleModeAsync(args);
+                await RunTuiModeAsync(args);
             }
         }
         
@@ -51,10 +58,17 @@ namespace AisToN2K
             Console.WriteLine("  -w, --web         Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
             Console.WriteLine("  -d, --debug       Enable debug mode (shows all received and broadcast messages)");
             Console.WriteLine("  -h, --help        Show this help message");
+            Console.WriteLine("  --headless        Run in headless console mode (no TUI, log streamed to stdout)");
             Console.WriteLine("  --public, --external  Bind web UI to 0.0.0.0 for external subnet access (use with --web)");
             Console.WriteLine();
-            Console.WriteLine("Console mode (default):");
+            Console.WriteLine("TUI mode (default):");
+            Console.WriteLine("  • Interactive terminal UI with command input");
+            Console.WriteLine("  • Type / to see available commands");
+            Console.WriteLine("  • Ctrl+C twice to exit");
+            Console.WriteLine();
+            Console.WriteLine("Headless mode:");
             Console.WriteLine("  • Auto-starts all configured services");
+            Console.WriteLine("  • Log streamed to stdout");
             Console.WriteLine("  • Runs until Ctrl+C is pressed");
             Console.WriteLine();
             Console.WriteLine("Web mode:");
@@ -69,6 +83,29 @@ namespace AisToN2K
             Console.WriteLine("  • Statistics reports every 30 seconds");
             Console.WriteLine("  • Detailed message type breakdowns");
             Console.WriteLine();
+        }
+
+        private static async Task RunTuiModeAsync(string[] args)
+        {
+            try
+            {
+                // Load configuration
+                var config = await LoadConfigurationSilentAsync();
+                if (config == null)
+                {
+                    // Fall back to console error
+                    Console.WriteLine("❌ Failed to load configuration. Run with --headless to see details.");
+                    return;
+                }
+
+                var tuiApp = new TuiApp(config, _debugMode);
+                await tuiApp.RunAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Fatal error: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
         }
 
         private static int GetConfiguredWebPortOrDefault()
@@ -381,6 +418,44 @@ namespace AisToN2K
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Failed to load configuration: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Load configuration without Console output (for TUI mode where Terminal.Gui owns the screen).
+        /// </summary>
+        private static async Task<AppConfig?> LoadConfigurationSilentAsync()
+        {
+            try
+            {
+                var basePath = AppContext.BaseDirectory;
+                
+                var configBuilder = new ConfigurationBuilder()
+                    .SetBasePath(basePath)
+                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                    .AddUserSecrets("ais-to-n2k-secrets")
+                    .AddEnvironmentVariables();
+
+                var configuration = configBuilder.Build();
+                var config = new AppConfig();
+                configuration.Bind(config);
+
+                var secureConfigService = new SecureConfigurationService(configuration);
+                config.ApiKey = secureConfigService.GetApiKey();
+
+                // Don't fail on missing API key — TUI will show the error in the command pane
+                // Validate configuration
+                var validationErrors = config.Validate();
+                if (validationErrors.Any())
+                {
+                    // Still return config — TUI can display errors
+                }
+
+                return config;
+            }
+            catch (Exception)
+            {
                 return null;
             }
         }

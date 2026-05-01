@@ -1,4 +1,5 @@
 using AisToN2K.Configuration;
+using AisToN2K.Interfaces;
 using AisToN2K.Models;
 
 namespace AisToN2K.Services
@@ -25,12 +26,41 @@ namespace AisToN2K.Services
         public AppConfig CurrentConfig => _config;
         public StatisticsService? Statistics => _statistics;
 
+        /// <summary>
+        /// Log output target. When set, Console.WriteLines are redirected here (for TUI mode).
+        /// </summary>
+        private ILogOutput? _logOutput;
+        public ILogOutput? LogOutput
+        {
+            get => _logOutput;
+            set
+            {
+                _logOutput = value;
+                if (_statistics != null)
+                    _statistics.LogOutput = value;
+            }
+        }
+
         public event EventHandler<string>? StatusChanged;
+
+        /// <summary>
+        /// Fired when vessel data is received, before NMEA conversion.
+        /// Used by the TUI to feed the VesselTrackingService.
+        /// </summary>
+        public event EventHandler<AisData>? VesselDataForTracking;
 
         public ServiceManager(AppConfig config, bool debugMode = false)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _debugMode = debugMode;
+        }
+
+        private void Log(string message)
+        {
+            if (_logOutput != null)
+                _logOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
         }
 
         public async Task InitializeAsync()
@@ -244,6 +274,9 @@ namespace AisToN2K.Services
         {
             try
             {
+                // Fire tracking event for TUI vessel tracking
+                VesselDataForTracking?.Invoke(this, vesselData);
+
                 // Extract vessel information from AisData object
                 string vesselName = vesselData.VesselName ?? vesselData.Mmsi.ToString();
                 double latitude = vesselData.Latitude;
@@ -255,13 +288,13 @@ namespace AisToN2K.Services
                 // Debug logging for received vessel data
                 if (_debugMode)
                 {
-                    Console.WriteLine($"📥 RX: Type {messageType} | MMSI: {vesselData.Mmsi} | {vesselName} | {latitude:F4}, {longitude:F4}");
+                    Log($"📥 RX: Type {messageType} | MMSI: {vesselData.Mmsi} | {vesselName} | {latitude:F4}, {longitude:F4}");
                 }
 
                 // Show occasional progress indicators when not in debug mode
                 if (!_debugMode && _statistics != null && _statistics.TotalMessagesReceived % 10 == 0)
                 {
-                    Console.WriteLine($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {vesselName})");
+                    Log($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {vesselName})");
                 }
 
                 // Convert to NMEA 0183
@@ -270,7 +303,7 @@ namespace AisToN2K.Services
                 {
                     if (_debugMode)
                     {
-                        Console.WriteLine($"⚠️ Failed to convert message type {messageType}");
+                        Log($"⚠️ Failed to convert message type {messageType}");
                     }
                     _statistics?.IncrementError();
                     return;
@@ -281,7 +314,7 @@ namespace AisToN2K.Services
                 // Debug logging for converted NMEA message
                 if (_debugMode)
                 {
-                    Console.WriteLine($"📤 TX: {nmeaMessage.Trim()}");
+                    Log($"📤 TX: {nmeaMessage.Trim()}");
                 }
 
                 // Log message details if enabled
@@ -312,17 +345,17 @@ namespace AisToN2K.Services
             }
             catch (ArgumentException ex)
             {
-                Console.WriteLine($"❌ Error processing vessel data (argument error): {ex.Message}");
+                Log($"❌ Error processing vessel data (argument error): {ex.Message}");
                 _statistics?.IncrementError();
             }
             catch (InvalidOperationException ex)
             {
-                Console.WriteLine($"❌ Error processing vessel data (invalid operation): {ex.Message}");
+                Log($"❌ Error processing vessel data (invalid operation): {ex.Message}");
                 _statistics?.IncrementError();
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
             {
-                Console.WriteLine($"❌ Error processing vessel data: {ex.Message}");
+                Log($"❌ Error processing vessel data: {ex.Message}");
                 _statistics?.IncrementError();
             }
         }
@@ -343,7 +376,7 @@ namespace AisToN2K.Services
                 }
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
-                    Console.WriteLine($"⚠️ Error during ServiceManager disposal: {ex.Message}");
+                    Log($"⚠️ Error during ServiceManager disposal: {ex.Message}");
                 }
                 finally
                 {
@@ -355,15 +388,12 @@ namespace AisToN2K.Services
         public void Dispose()
         {
             // Synchronous dispose - prefer DisposeAsync when possible
-            // This is provided for compatibility with IDisposable pattern
             if (!_disposed)
             {
                 try
                 {
                     _statistics?.PrintSummary();
 
-                    // Use GetAwaiter().GetResult() for synchronous disposal
-                    // Note: This can potentially cause deadlocks in some contexts
                     StopWebSocketAsync().GetAwaiter().GetResult();
                     StopTcpServerAsync().GetAwaiter().GetResult();
                     StopUdpServerAsync().GetAwaiter().GetResult();
@@ -372,7 +402,7 @@ namespace AisToN2K.Services
                 }
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
-                    Console.WriteLine($"⚠️ Error during ServiceManager disposal: {ex.Message}");
+                    Log($"⚠️ Error during ServiceManager disposal: {ex.Message}");
                 }
                 finally
                 {
