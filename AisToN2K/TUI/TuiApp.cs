@@ -64,7 +64,7 @@ namespace AisToN2K.TUI
             _autoStartTcp = autoStartTcp;
             _autoStartUdp = autoStartUdp;
             _logPathOverride = logPathOverride;
-            _trackingService = new VesselTrackingService(new VesselRegistryStore());
+            _trackingService = new VesselTrackingService(new VesselRegistryStore(), new TrackingStore());
             _alertService = new AlertService(new AlertStore());
         }
 

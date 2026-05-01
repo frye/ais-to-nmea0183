@@ -333,4 +333,129 @@ namespace AisToN2K.Tests.Unit
             _service.IsPendingTracking.Should().BeFalse();
         }
     }
+
+    public class VesselTrackingServicePersistenceTests
+    {
+        [Fact]
+        public void RestoresActiveTracking_FromStore()
+        {
+            var store = TrackingStore.CreateInMemory();
+            store.Save(new TrackingState
+            {
+                Mmsi = 123456789,
+                VesselName = "Persisted Vessel",
+                IsPendingTracking = false,
+                TrackingStartTime = new DateTime(2026, 5, 1, 10, 0, 0, DateTimeKind.Utc),
+                TotalDistanceNm = 3.2,
+                TrackPoints = new List<TrackPointData>
+                {
+                    new() { Latitude = 48.5, Longitude = -122.5, SpeedOverGround = 5.0, Timestamp = DateTime.UtcNow }
+                }
+            });
+
+            var service = new VesselTrackingService(trackingStore: store);
+
+            service.IsTracking.Should().BeTrue();
+            service.TrackedMmsi.Should().Be(123456789);
+            service.TrackedVesselName.Should().Be("Persisted Vessel");
+            service.IsPendingTracking.Should().BeFalse();
+            service.TotalDistanceNm.Should().Be(3.2);
+            service.GetTrackPoints().Should().HaveCount(1);
+        }
+
+        [Fact]
+        public void RestoresPendingTracking_FromStore()
+        {
+            var store = TrackingStore.CreateInMemory();
+            store.Save(new TrackingState
+            {
+                Mmsi = 999999999,
+                VesselName = "999999999",
+                IsPendingTracking = true,
+                TrackingStartTime = null,
+                TotalDistanceNm = 0,
+                TrackPoints = new()
+            });
+
+            var service = new VesselTrackingService(trackingStore: store);
+
+            service.IsTracking.Should().BeTrue();
+            service.IsPendingTracking.Should().BeTrue();
+            service.TrackedMmsi.Should().Be(999999999);
+        }
+
+        [Fact]
+        public void StopTracking_ClearsPersistedState()
+        {
+            var store = TrackingStore.CreateInMemory();
+            var service = new VesselTrackingService(trackingStore: store);
+            service.StartTracking(123456789, "Test");
+
+            store.Load().Should().NotBeNull();
+
+            service.StopTracking();
+
+            store.Load().Should().BeNull();
+        }
+
+        [Fact]
+        public void StartTracking_PersistsState()
+        {
+            var store = TrackingStore.CreateInMemory();
+            var service = new VesselTrackingService(trackingStore: store);
+
+            service.StartTracking(123456789, "My Boat");
+
+            var state = store.Load();
+            state.Should().NotBeNull();
+            state!.Mmsi.Should().Be(123456789);
+            state.VesselName.Should().Be("My Boat");
+            state.IsPendingTracking.Should().BeFalse();
+        }
+
+        [Fact]
+        public void StartPendingTracking_PersistsState()
+        {
+            var store = TrackingStore.CreateInMemory();
+            var service = new VesselTrackingService(trackingStore: store);
+
+            service.StartPendingTracking(888888888);
+
+            var state = store.Load();
+            state.Should().NotBeNull();
+            state!.Mmsi.Should().Be(888888888);
+            state.IsPendingTracking.Should().BeTrue();
+        }
+
+        [Fact]
+        public void ProcessVesselData_PersistsTrackPoints()
+        {
+            var store = TrackingStore.CreateInMemory();
+            var service = new VesselTrackingService(trackingStore: store);
+            service.StartTracking(123456789, "Test");
+
+            service.ProcessVesselData(new AisData
+            {
+                Mmsi = 123456789,
+                Latitude = 48.5,
+                Longitude = -122.5,
+                SpeedOverGround = 5.0,
+                Timestamp = DateTime.UtcNow
+            });
+
+            var state = store.Load();
+            state.Should().NotBeNull();
+            state!.TrackPoints.Should().HaveCount(1);
+            state.TrackPoints[0].Latitude.Should().Be(48.5);
+        }
+
+        [Fact]
+        public void NoTracking_StoreRemainsEmpty()
+        {
+            var store = TrackingStore.CreateInMemory();
+            var service = new VesselTrackingService(trackingStore: store);
+
+            store.Load().Should().BeNull();
+        }
+    }
 }

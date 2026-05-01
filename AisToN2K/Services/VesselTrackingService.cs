@@ -46,16 +46,77 @@ namespace AisToN2K.Services
         // Persistent: vessel name/MMSI pairs (disk-backed)
         private Dictionary<int, string> _persistentVessels = new();
         private readonly VesselRegistryStore _registryStore;
+        private readonly TrackingStore _trackingStore;
 
         // Runtime: last-heard timestamps (in-memory only, cleared by /targets clear)
         private readonly Dictionary<int, DateTime> _lastHeard = new();
 
         public event EventHandler? TrackingUpdated;
 
-        public VesselTrackingService(VesselRegistryStore? registryStore = null)
+        public VesselTrackingService(VesselRegistryStore? registryStore = null, TrackingStore? trackingStore = null)
         {
             _registryStore = registryStore ?? VesselRegistryStore.CreateInMemory();
+            _trackingStore = trackingStore ?? TrackingStore.CreateInMemory();
             _persistentVessels = _registryStore.Load();
+            RestoreTrackingState();
+        }
+
+        private void RestoreTrackingState()
+        {
+            var state = _trackingStore.Load();
+            if (state == null) return;
+
+            lock (_lock)
+            {
+                TrackedMmsi = state.Mmsi;
+                TrackedVesselName = state.VesselName;
+                IsPendingTracking = state.IsPendingTracking;
+                TrackingStartTime = state.TrackingStartTime;
+                TotalDistanceNm = state.TotalDistanceNm;
+                _trackPoints.Clear();
+                foreach (var p in state.TrackPoints)
+                {
+                    _trackPoints.Add(new TrackPoint(
+                        p.Latitude, p.Longitude,
+                        p.SpeedOverGround, p.CourseOverGround,
+                        p.Timestamp));
+                }
+            }
+        }
+
+        private TrackingState BuildTrackingState()
+        {
+            lock (_lock)
+            {
+                return new TrackingState
+                {
+                    Mmsi = TrackedMmsi!.Value,
+                    VesselName = TrackedVesselName,
+                    IsPendingTracking = IsPendingTracking,
+                    TrackingStartTime = TrackingStartTime,
+                    TotalDistanceNm = TotalDistanceNm,
+                    TrackPoints = _trackPoints.Select(p => new TrackPointData
+                    {
+                        Latitude = p.Latitude,
+                        Longitude = p.Longitude,
+                        SpeedOverGround = p.SpeedOverGround,
+                        CourseOverGround = p.CourseOverGround,
+                        Timestamp = p.Timestamp
+                    }).ToList()
+                };
+            }
+        }
+
+        private void PersistImmediate()
+        {
+            if (!IsTracking) return;
+            _trackingStore.Save(BuildTrackingState());
+        }
+
+        private void PersistDebounced()
+        {
+            if (!IsTracking) return;
+            _trackingStore.MarkDirty(BuildTrackingState());
         }
 
         /// <summary>
@@ -172,13 +233,16 @@ namespace AisToN2K.Services
         }
 
         /// <summary>
-        /// Flush persistent vessel registry to disk (call on shutdown).
+        /// Flush persistent vessel registry and tracking state to disk (call on shutdown).
         /// </summary>
         public void FlushRegistry()
         {
             Dictionary<int, string> snapshot;
             lock (_lock) { snapshot = new Dictionary<int, string>(_persistentVessels); }
             _registryStore.Flush(snapshot);
+
+            if (IsTracking)
+                _trackingStore.Flush(BuildTrackingState());
         }
 
         /// <summary>
@@ -196,6 +260,7 @@ namespace AisToN2K.Services
                 TrackingStartTime = DateTime.UtcNow;
                 _trackPoints.Clear();
             }
+            PersistImmediate();
             TrackingUpdated?.Invoke(this, EventArgs.Empty);
         }
 
@@ -215,6 +280,7 @@ namespace AisToN2K.Services
                 TrackingStartTime = null;
                 _trackPoints.Clear();
             }
+            PersistImmediate();
             TrackingUpdated?.Invoke(this, EventArgs.Empty);
         }
 
@@ -235,6 +301,7 @@ namespace AisToN2K.Services
                 TrackingStartTime = null;
                 _trackPoints.Clear();
             }
+            _trackingStore.Clear();
             TrackingUpdated?.Invoke(this, EventArgs.Empty);
             return points;
         }
@@ -266,6 +333,7 @@ namespace AisToN2K.Services
                     TrackedVesselName = vesselName;
                 }
                 justActivated = true;
+                PersistImmediate();
                 PendingTrackingActivated?.Invoke(this, (data.Mmsi, vesselName));
             }
 
@@ -305,6 +373,7 @@ namespace AisToN2K.Services
                 _trackPoints.Add(point);
             }
 
+            PersistDebounced();
             TrackingUpdated?.Invoke(this, EventArgs.Empty);
         }
 
