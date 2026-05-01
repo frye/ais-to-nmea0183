@@ -76,6 +76,12 @@ namespace AisToN2K.TUI
             // Subscribe to the VesselDataReceived on the ServiceManager
             SubscribeToVesselData();
 
+            // In debug mode, suppress debug messages from TUI log pane by default
+            if (_debugMode)
+            {
+                _logService.ShowDebugMessages = false;
+            }
+
             Application.Init();
             _top = Application.Top;
 
@@ -695,6 +701,13 @@ namespace AisToN2K.TUI
                 case "clear":
                     _logService.Clear();
                     AppendCommandOutput("Log cleared.");
+                    break;
+                case "debug":
+                    _logService.ShowDebugMessages = !_logService.ShowDebugMessages;
+                    AppendCommandOutput(_logService.ShowDebugMessages
+                        ? "Debug messages shown in log pane."
+                        : "Debug messages hidden from log pane.");
+                    RefreshLogPane();
                     break;
                 case "quit":
                     Application.RequestStop();

@@ -131,6 +131,14 @@ namespace AisToN2K.TUI
                     "Clears all messages from the log output pane on the right side.",
                     "/clear"),
 
+                ["debug"] = new("debug", "Toggle debug messages in log pane",
+                    "Toggle the display of debug messages (🔍 📥 📤) in the log pane.\n" +
+                    "Debug messages are still captured in log files and the buffer;\n" +
+                    "this only controls whether they appear in the TUI log pane.\n\n" +
+                    "When running with --debug, messages are hidden by default.\n" +
+                    "Use /debug to show them, /debug again to hide.",
+                    "/debug"),
+
                 ["quit"] = new("quit", "Exit the application",
                     "Gracefully shut down all services and exit.\n" +
                     "You can also press Ctrl+C twice to exit.",

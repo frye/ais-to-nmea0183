@@ -5,12 +5,24 @@ namespace AisToN2K.TUI
     /// <summary>
     /// Thread-safe log buffer that captures program output for the TUI log pane.
     /// Implements ILogOutput so services can write here instead of Console.
+    /// Supports filtering debug messages from the display while retaining them in the buffer.
     /// </summary>
     public class LogPaneService : ILogOutput
     {
+        private static readonly string[] DebugPrefixes = new[]
+        {
+            "🔍", "📥 RX:", "📤 TX:", "COORD DEBUG"
+        };
+
         private readonly object _lock = new();
         private readonly List<string> _lines = new();
         private readonly int _maxLines;
+
+        /// <summary>
+        /// When false, debug messages (identified by known prefixes) are hidden from display
+        /// but still retained in the buffer. Default: true.
+        /// </summary>
+        public bool ShowDebugMessages { get; set; } = true;
 
         public event EventHandler? LogUpdated;
 
@@ -43,7 +55,9 @@ namespace AisToN2K.TUI
         {
             lock (_lock)
             {
-                return new List<string>(_lines);
+                if (ShowDebugMessages)
+                    return new List<string>(_lines);
+                return _lines.Where(l => !IsDebugLine(l)).ToList();
             }
         }
 
@@ -51,9 +65,11 @@ namespace AisToN2K.TUI
         {
             lock (_lock)
             {
-                if (lastN >= _lines.Count)
-                    return new List<string>(_lines);
-                return _lines.GetRange(_lines.Count - lastN, lastN);
+                var source = ShowDebugMessages ? _lines : _lines.Where(l => !IsDebugLine(l)).ToList();
+                var list = source.ToList();
+                if (lastN >= list.Count)
+                    return list;
+                return list.GetRange(list.Count - lastN, lastN);
             }
         }
 
@@ -69,6 +85,18 @@ namespace AisToN2K.TUI
                 _lines.Clear();
             }
             LogUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        private static bool IsDebugLine(string line)
+        {
+            // Lines are formatted as "HH:mm:ss message" — skip the timestamp prefix
+            var msg = line.Length > 9 ? line.AsSpan(9) : line.AsSpan();
+            foreach (var prefix in DebugPrefixes)
+            {
+                if (msg.StartsWith(prefix))
+                    return true;
+            }
+            return false;
         }
     }
 }
