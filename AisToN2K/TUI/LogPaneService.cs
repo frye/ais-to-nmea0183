@@ -11,7 +11,7 @@ namespace AisToN2K.TUI
     {
         private static readonly string[] DebugPrefixes = new[]
         {
-            "🔍", "📥 RX:", "📤 TX:", "COORD DEBUG"
+            "🔍", "📥 RX:", "📤 TX:", "COORD DEBUG", "⚠️ Ignored message type:"
         };
 
         private readonly object _lock = new();
