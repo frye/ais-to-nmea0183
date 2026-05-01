@@ -201,7 +201,8 @@ namespace AisToN2K.TUI
                 Y = 0,
                 Width = Dim.Fill(),
                 Height = 3,
-                Visible = false
+                Visible = false,
+                CanFocus = false
             };
 
             _trackingLabel = new Label("")
@@ -222,7 +223,8 @@ namespace AisToN2K.TUI
                 X = 0,
                 Y = contentY,
                 Width = Dim.Percent(40),
-                Height = Dim.Fill() - 3 // Leave room for input
+                Height = Dim.Fill() - 3,
+                CanFocus = false
             };
 
             _commandOutput = new TextView()
@@ -232,7 +234,8 @@ namespace AisToN2K.TUI
                 Width = Dim.Fill(),
                 Height = Dim.Fill(),
                 ReadOnly = true,
-                WordWrap = true
+                WordWrap = true,
+                CanFocus = false
             };
             _commandPane.Add(_commandOutput);
 
@@ -242,7 +245,8 @@ namespace AisToN2K.TUI
                 X = Pos.Percent(40),
                 Y = contentY,
                 Width = Dim.Fill(),
-                Height = 5
+                Height = 5,
+                CanFocus = false
             };
 
             _wsStatusLabel = new Label("WS:  ○ Disconnected")
@@ -275,7 +279,8 @@ namespace AisToN2K.TUI
                 X = Pos.Percent(40),
                 Y = contentY + 5,
                 Width = Dim.Fill(),
-                Height = Dim.Fill() - 3
+                Height = Dim.Fill() - 3,
+                CanFocus = false
             };
 
             _logOutput = new TextView()
@@ -285,7 +290,8 @@ namespace AisToN2K.TUI
                 Width = Dim.Fill(),
                 Height = Dim.Fill(),
                 ReadOnly = true,
-                WordWrap = true
+                WordWrap = true,
+                CanFocus = false
             };
             _logFrame.Add(_logOutput);
 
@@ -312,7 +318,8 @@ namespace AisToN2K.TUI
                 Y = Pos.AnchorEnd(14),
                 Width = Dim.Percent(40),
                 Height = 12,
-                Visible = false
+                Visible = false,
+                CanFocus = false
             };
 
             _slashMenu = new ListView()
@@ -321,7 +328,8 @@ namespace AisToN2K.TUI
                 Y = 0,
                 Width = Dim.Fill(),
                 Height = Dim.Fill(),
-                AllowsMarking = false
+                AllowsMarking = false,
+                CanFocus = false
             };
             _slashMenuFrame.Add(_slashMenu);
 
@@ -518,6 +526,7 @@ namespace AisToN2K.TUI
                 _slashMenuVisible = false;
                 _slashMenuFrame!.Visible = false;
                 _mainWindow!.SetNeedsDisplay();
+                _inputField!.SetFocus();
             }
         }
 
