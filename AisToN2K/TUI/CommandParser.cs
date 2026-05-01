@@ -143,6 +143,15 @@ namespace AisToN2K.TUI
                     "Gracefully shut down all services and exit.\n" +
                     "You can also press Ctrl+C twice to exit.",
                     "/quit"),
+
+                ["targets"] = new("targets", "List or clear seen vessels",
+                    "Display all vessels heard this session, or clear the list.\n\n" +
+                    "Subcommands:\n" +
+                    "  /targets list    — Show a table of all heard vessels (name, MMSI, last heard)\n" +
+                    "  /targets clear   — Clear the session's heard-vessel list\n\n" +
+                    "Vessel name/MMSI pairs are persisted to disk across restarts.\n" +
+                    "The 'last heard' timestamps are session-only and reset on clear or restart.",
+                    "/targets <list|clear>"),
             };
         }
     }

@@ -17,6 +17,7 @@ namespace AisToN2K.Services
 
     /// <summary>
     /// Tracks a specific vessel's position over time, calculating distance and speed.
+    /// Maintains a persistent vessel name/MMSI registry and runtime last-heard timestamps.
     /// </summary>
     public class VesselTrackingService
     {
@@ -32,63 +33,128 @@ namespace AisToN2K.Services
         public double? CurrentSogKnots { get; private set; }
         public DateTime? TrackingStartTime { get; private set; }
 
-        // Known vessels seen in the data stream (MMSI -> last known name)
-        private readonly Dictionary<int, string> _knownVessels = new();
+        // Persistent: vessel name/MMSI pairs (disk-backed)
+        private Dictionary<int, string> _persistentVessels = new();
+        private readonly VesselRegistryStore _registryStore;
+
+        // Runtime: last-heard timestamps (in-memory only, cleared by /targets clear)
+        private readonly Dictionary<int, DateTime> _lastHeard = new();
 
         public event EventHandler? TrackingUpdated;
 
+        public VesselTrackingService(VesselRegistryStore? registryStore = null)
+        {
+            _registryStore = registryStore ?? new VesselRegistryStore();
+            _persistentVessels = _registryStore.Load();
+        }
+
         /// <summary>
-        /// Get list of known vessels (seen in the data stream).
+        /// Get list of known vessels (persistent name/MMSI pairs).
         /// </summary>
         public Dictionary<int, string> GetKnownVessels()
         {
             lock (_lock)
             {
-                return new Dictionary<int, string>(_knownVessels);
+                return new Dictionary<int, string>(_persistentVessels);
             }
         }
 
         /// <summary>
         /// Register a vessel as seen in the data stream.
+        /// Updates both persistent name/MMSI and runtime last-heard timestamp.
         /// </summary>
-        public void RegisterVessel(int mmsi, string? name)
+        public void RegisterVessel(int mmsi, string? name, DateTime? timestamp = null)
         {
+            bool isNew = false;
             lock (_lock)
             {
+                var ts = timestamp ?? DateTime.UtcNow;
+                _lastHeard[mmsi] = ts;
+
                 if (!string.IsNullOrWhiteSpace(name))
                 {
-                    _knownVessels[mmsi] = name.Trim();
+                    if (!_persistentVessels.TryGetValue(mmsi, out var existing) || existing != name.Trim())
+                    {
+                        _persistentVessels[mmsi] = name.Trim();
+                        isNew = true;
+                    }
                 }
-                else if (!_knownVessels.ContainsKey(mmsi))
+                else if (!_persistentVessels.ContainsKey(mmsi))
                 {
-                    _knownVessels[mmsi] = mmsi.ToString();
+                    _persistentVessels[mmsi] = mmsi.ToString();
+                    isNew = true;
                 }
+            }
+
+            if (isNew)
+            {
+                Dictionary<int, string> snapshot;
+                lock (_lock) { snapshot = new Dictionary<int, string>(_persistentVessels); }
+                _registryStore.MarkDirty(snapshot);
             }
         }
 
         /// <summary>
         /// Find vessels matching a search string (by MMSI or name).
+        /// Searches persistent vessel registry (unaffected by /targets clear).
         /// </summary>
         public List<(int Mmsi, string Name)> FindVessels(string search)
         {
             lock (_lock)
             {
-                // If all digits, try MMSI match first
                 if (int.TryParse(search, out var mmsi))
                 {
-                    if (_knownVessels.TryGetValue(mmsi, out var name))
+                    if (_persistentVessels.TryGetValue(mmsi, out var name))
                         return new List<(int, string)> { (mmsi, name) };
                     return new List<(int, string)>();
                 }
 
-                // Name search (case-insensitive contains)
                 var searchLower = search.ToLowerInvariant();
-                return _knownVessels
+                return _persistentVessels
                     .Where(kv => kv.Value.ToLowerInvariant().Contains(searchLower))
                     .Select(kv => (kv.Key, kv.Value))
                     .OrderBy(v => v.Value)
                     .ToList();
             }
+        }
+
+        /// <summary>
+        /// Get all targets heard this session (have a LastHeard timestamp).
+        /// Sorted by most recently heard first.
+        /// </summary>
+        public List<(int Mmsi, string Name, DateTime LastHeard)> GetAllTargets()
+        {
+            lock (_lock)
+            {
+                return _lastHeard
+                    .Select(kv => (
+                        Mmsi: kv.Key,
+                        Name: _persistentVessels.TryGetValue(kv.Key, out var n) ? n : kv.Key.ToString(),
+                        LastHeard: kv.Value))
+                    .OrderByDescending(t => t.LastHeard)
+                    .ToList();
+            }
+        }
+
+        /// <summary>
+        /// Clear runtime last-heard timestamps. Persistent name/MMSI data is unaffected.
+        /// </summary>
+        public void ClearTargets()
+        {
+            lock (_lock)
+            {
+                _lastHeard.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Flush persistent vessel registry to disk (call on shutdown).
+        /// </summary>
+        public void FlushRegistry()
+        {
+            Dictionary<int, string> snapshot;
+            lock (_lock) { snapshot = new Dictionary<int, string>(_persistentVessels); }
+            _registryStore.Flush(snapshot);
         }
 
         /// <summary>
@@ -133,8 +199,9 @@ namespace AisToN2K.Services
         /// </summary>
         public void ProcessVesselData(AisData data)
         {
-            // Always register vessels we see
-            RegisterVessel(data.Mmsi, data.VesselName);
+            // Always register vessels we see (updates both persistent name and runtime timestamp)
+            var ts = data.Timestamp != default ? data.Timestamp : DateTime.UtcNow;
+            RegisterVessel(data.Mmsi, data.VesselName, ts);
 
             if (!IsTracking || data.Mmsi != TrackedMmsi)
                 return;

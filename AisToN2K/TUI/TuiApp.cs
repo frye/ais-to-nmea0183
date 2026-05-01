@@ -16,7 +16,7 @@ namespace AisToN2K.TUI
         private readonly bool _debugMode;
 
         private ServiceManager? _serviceManager;
-        private VesselTrackingService _trackingService = new();
+        private VesselTrackingService _trackingService;
         private LogPaneService _logService = new();
         private CommandParser _commandParser = new();
         private CommandHistory _commandHistory = new();
@@ -62,6 +62,7 @@ namespace AisToN2K.TUI
             _autoStartTcp = autoStartTcp;
             _autoStartUdp = autoStartUdp;
             _logPathOverride = logPathOverride;
+            _trackingService = new VesselTrackingService(new VesselRegistryStore());
         }
 
         public async Task RunAsync()
@@ -108,6 +109,9 @@ namespace AisToN2K.TUI
 
             statusTimer.Dispose();
             Application.Shutdown();
+
+            // Flush persistent vessel registry before shutdown
+            _trackingService.FlushRegistry();
 
             // Cleanup
             if (_serviceManager != null)
@@ -721,6 +725,9 @@ namespace AisToN2K.TUI
                 case "quit":
                     Application.RequestStop();
                     break;
+                case "targets":
+                    ExecuteTargets(args);
+                    break;
                 default:
                     AppendCommandOutput($"Unknown command: /{cmd}. Type / to see available commands.");
                     break;
@@ -1101,6 +1108,62 @@ namespace AisToN2K.TUI
                     AppendCommandOutput($"❌ Export failed: {ex.Message}");
                 });
             }
+        }
+
+        private void ExecuteTargets(string[] args)
+        {
+            var subcommand = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+
+            switch (subcommand)
+            {
+                case "list":
+                    ExecuteTargetsList();
+                    break;
+                case "clear":
+                    _trackingService.ClearTargets();
+                    AppendCommandOutput("✅ Targets list cleared. New vessels will appear as they are heard.");
+                    break;
+                default:
+                    AppendCommandOutput($"Unknown subcommand: {subcommand}. Use /targets list or /targets clear.");
+                    break;
+            }
+        }
+
+        private void ExecuteTargetsList()
+        {
+            var targets = _trackingService.GetAllTargets();
+
+            if (targets.Count == 0)
+            {
+                AppendCommandOutput("No targets heard this session. Vessels will appear as messages are received.");
+                return;
+            }
+
+            // Table header
+            AppendCommandOutput($"{"Name",-22} {"MMSI",-11} {"Last Heard"}");
+            AppendCommandOutput(new string('─', 50));
+
+            foreach (var (mmsi, name, lastHeard) in targets)
+            {
+                var displayName = name.Length > 20 ? name[..20] + "…" : name;
+                var timeStr = FormatLastHeard(lastHeard);
+                AppendCommandOutput($"{displayName,-22} {mmsi,-11} {timeStr}");
+            }
+
+            AppendCommandOutput(new string('─', 50));
+            AppendCommandOutput($"— {targets.Count} target{(targets.Count != 1 ? "s" : "")} heard this session —");
+        }
+
+        private static string FormatLastHeard(DateTime lastHeard)
+        {
+            var elapsed = DateTime.UtcNow - lastHeard;
+            if (elapsed.TotalSeconds < 60)
+                return $"{(int)elapsed.TotalSeconds}s ago";
+            if (elapsed.TotalMinutes < 60)
+                return $"{(int)elapsed.TotalMinutes}m ago";
+            if (elapsed.TotalHours < 24)
+                return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m ago";
+            return lastHeard.ToString("yyyy-MM-dd HH:mm");
         }
 
         private void ExecuteStatus()
