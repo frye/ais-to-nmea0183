@@ -3,9 +3,19 @@ using AisToN2K.Interfaces;
 namespace AisToN2K.TUI
 {
     /// <summary>
+    /// A single log entry with optional vessel MMSI metadata for alert highlighting.
+    /// </summary>
+    public class LogEntry
+    {
+        public string Text { get; set; } = "";
+        public int? Mmsi { get; set; }
+    }
+
+    /// <summary>
     /// Thread-safe log buffer that captures program output for the TUI log pane.
     /// Implements ILogOutput so services can write here instead of Console.
     /// Supports filtering debug messages from the display while retaining them in the buffer.
+    /// Stores structured LogEntry objects with optional MMSI metadata for alert highlighting.
     /// </summary>
     public class LogPaneService : ILogOutput
     {
@@ -15,7 +25,7 @@ namespace AisToN2K.TUI
         };
 
         private readonly object _lock = new();
-        private readonly List<string> _lines = new();
+        private readonly List<LogEntry> _entries = new();
         private readonly int _maxLines;
 
         /// <summary>
@@ -37,10 +47,28 @@ namespace AisToN2K.TUI
             var line = $"{timestamp} {message}";
             lock (_lock)
             {
-                _lines.Add(line);
-                if (_lines.Count > _maxLines)
+                _entries.Add(new LogEntry { Text = line, Mmsi = null });
+                if (_entries.Count > _maxLines)
                 {
-                    _lines.RemoveAt(0);
+                    _entries.RemoveAt(0);
+                }
+            }
+            LogUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Write a log line with vessel MMSI metadata (for alert highlighting).
+        /// </summary>
+        public void WriteLineWithMmsi(string message, int mmsi)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            var line = $"{timestamp} {message}";
+            lock (_lock)
+            {
+                _entries.Add(new LogEntry { Text = line, Mmsi = mmsi });
+                if (_entries.Count > _maxLines)
+                {
+                    _entries.RemoveAt(0);
                 }
             }
             LogUpdated?.Invoke(this, EventArgs.Empty);
@@ -51,13 +79,32 @@ namespace AisToN2K.TUI
             WriteLine(string.Format(format, args));
         }
 
+        /// <summary>
+        /// Get log lines as plain strings (backward-compatible).
+        /// </summary>
         public List<string> GetLines()
         {
             lock (_lock)
             {
                 if (ShowDebugMessages)
-                    return new List<string>(_lines);
-                return _lines.Where(l => !IsDebugLine(l)).ToList();
+                    return _entries.Select(e => e.Text).ToList();
+                return _entries.Where(e => !IsDebugLine(e.Text)).Select(e => e.Text).ToList();
+            }
+        }
+
+        /// <summary>
+        /// Get structured log entries (for alert-aware rendering).
+        /// </summary>
+        public List<LogEntry> GetEntries()
+        {
+            lock (_lock)
+            {
+                if (ShowDebugMessages)
+                    return _entries.Select(e => new LogEntry { Text = e.Text, Mmsi = e.Mmsi }).ToList();
+                return _entries
+                    .Where(e => !IsDebugLine(e.Text))
+                    .Select(e => new LogEntry { Text = e.Text, Mmsi = e.Mmsi })
+                    .ToList();
             }
         }
 
@@ -65,24 +112,26 @@ namespace AisToN2K.TUI
         {
             lock (_lock)
             {
-                var source = ShowDebugMessages ? _lines : _lines.Where(l => !IsDebugLine(l)).ToList();
+                var source = ShowDebugMessages
+                    ? _entries
+                    : _entries.Where(e => !IsDebugLine(e.Text)).ToList();
                 var list = source.ToList();
                 if (lastN >= list.Count)
-                    return list;
-                return list.GetRange(list.Count - lastN, lastN);
+                    return list.Select(e => e.Text).ToList();
+                return list.GetRange(list.Count - lastN, lastN).Select(e => e.Text).ToList();
             }
         }
 
         public int LineCount
         {
-            get { lock (_lock) { return _lines.Count; } }
+            get { lock (_lock) { return _entries.Count; } }
         }
 
         public void Clear()
         {
             lock (_lock)
             {
-                _lines.Clear();
+                _entries.Clear();
             }
             LogUpdated?.Invoke(this, EventArgs.Empty);
         }

@@ -158,6 +158,26 @@ namespace AisToN2K.TUI
                     "Vessel name/MMSI pairs are persisted across restarts.\n" +
                     "The 'last heard' timestamps are session-only and reset on clear or restart.",
                     "/targets <list [time|mmsi] [reverse]|clear>"),
+
+                ["alert"] = new("alert", "Set or clear vessel alert",
+                    "Set an alert to be notified when a specific vessel is heard.\n" +
+                    "When the vessel transmits, you get an audible bell and the log line\n" +
+                    "is highlighted in red. Alerts persist between sessions.\n\n" +
+                    "Examples:\n" +
+                    "  /alert 367439490           — Alert by MMSI\n" +
+                    "  /alert Pacific Explorer    — Alert by name (resolves to MMSI)\n" +
+                    "  /alert 367439490 clear     — Remove alert for this vessel\n\n" +
+                    "See also: /alerts list, /alerts clear",
+                    "/alert <name|mmsi> [clear]"),
+
+                ["alerts"] = new("alerts", "List or clear all alerts",
+                    "Manage all active vessel alerts.\n\n" +
+                    "Subcommands:\n" +
+                    "  /alerts              — List all active alerts\n" +
+                    "  /alerts list         — List all active alerts\n" +
+                    "  /alerts clear        — Remove all alerts\n\n" +
+                    "See also: /alert <name|mmsi> to set individual alerts.",
+                    "/alerts [list|clear]"),
             };
         }
     }

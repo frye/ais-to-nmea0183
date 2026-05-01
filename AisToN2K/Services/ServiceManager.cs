@@ -81,6 +81,14 @@ namespace AisToN2K.Services
                 Console.WriteLine(message);
         }
 
+        private void Log(string message, int? mmsi)
+        {
+            if (mmsi.HasValue && _logOutput != null)
+                _logOutput.WriteLineWithMmsi(message, mmsi.Value);
+            else
+                Log(message);
+        }
+
         public async Task InitializeAsync()
         {
             // Initialize statistics service with debug mode and 30-second reporting
@@ -326,13 +334,13 @@ namespace AisToN2K.Services
                 // Debug logging for received vessel data
                 if (_debugMode)
                 {
-                    Log($"📥 RX: Type {messageType} | {displayLabel} | {latitude:F4}, {longitude:F4}");
+                    Log($"📥 RX: Type {messageType} | {displayLabel} | {latitude:F4}, {longitude:F4}", vesselData.Mmsi);
                 }
 
                 // Show occasional progress indicators when not in debug mode
                 if (!_debugMode && _statistics != null && _statistics.TotalMessagesReceived % 10 == 0)
                 {
-                    Log($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {displayLabel})");
+                    Log($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {displayLabel})", vesselData.Mmsi);
                 }
 
                 // Convert to NMEA 0183
@@ -352,7 +360,7 @@ namespace AisToN2K.Services
                 // Debug logging for converted NMEA message
                 if (_debugMode)
                 {
-                    Log($"📤 TX: {nmeaMessage.Trim()}");
+                    Log($"📤 TX: {nmeaMessage.Trim()}", vesselData.Mmsi);
                 }
 
                 // Log message details if enabled

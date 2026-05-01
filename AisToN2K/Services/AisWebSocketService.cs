@@ -30,6 +30,14 @@ namespace AisToN2K.Services
             else
                 Console.WriteLine(message);
         }
+
+        private void Log(string message, int? mmsi)
+        {
+            if (mmsi.HasValue && LogOutput != null)
+                LogOutput.WriteLineWithMmsi(message, mmsi.Value);
+            else
+                Log(message);
+        }
         
         public event EventHandler<AisData>? VesselDataReceived;
         public event EventHandler<string>? ErrorOccurred;
@@ -274,7 +282,7 @@ namespace AisToN2K.Services
                     {
                         var name = aisData.VesselName ?? VesselNameLookup?.Invoke(aisData.Mmsi);
                         var label = name != null ? $"{name} [{aisData.Mmsi}]" : $"[{aisData.Mmsi}]";
-                        Log($"🚢 Parsed Position Report: {label}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
+                        Log($"🚢 Parsed Position Report: {label}, {aisData.Latitude:F4},{aisData.Longitude:F4}", aisData.Mmsi);
                     }
                     
                     VesselDataReceived?.Invoke(this, aisData);
@@ -369,7 +377,7 @@ namespace AisToN2K.Services
                     {
                         var name = aisData.VesselName ?? VesselNameLookup?.Invoke(aisData.Mmsi);
                         var label = name != null ? $"{name} [{aisData.Mmsi}]" : $"[{aisData.Mmsi}]";
-                        Log($"🚢 Parsed Class B Report: {label}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
+                        Log($"🚢 Parsed Class B Report: {label}, {aisData.Latitude:F4},{aisData.Longitude:F4}", aisData.Mmsi);
                     }
                     
                     VesselDataReceived?.Invoke(this, aisData);

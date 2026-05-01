@@ -17,6 +17,7 @@ namespace AisToN2K.TUI
 
         private ServiceManager? _serviceManager;
         private VesselTrackingService _trackingService;
+        private AlertService _alertService;
         private LogPaneService _logService = new();
         private CommandParser _commandParser = new();
         private CommandHistory _commandHistory = new();
@@ -34,7 +35,8 @@ namespace AisToN2K.TUI
         private Label? _udpStatusLabel;
         private Label? _statsLabel;
         private FrameView? _logFrame;
-        private TextView? _logOutput;
+        private ListView? _logListView;
+        private List<LogEntry> _logEntries = new();
         private TextField? _inputField;
         private ListView? _slashMenu;
         private FrameView? _slashMenuFrame;
@@ -63,6 +65,7 @@ namespace AisToN2K.TUI
             _autoStartUdp = autoStartUdp;
             _logPathOverride = logPathOverride;
             _trackingService = new VesselTrackingService(new VesselRegistryStore());
+            _alertService = new AlertService(new AlertStore());
         }
 
         public async Task RunAsync()
@@ -130,6 +133,27 @@ namespace AisToN2K.TUI
             _serviceManager!.VesselDataForTracking += (sender, data) =>
             {
                 _trackingService.ProcessVesselData(data);
+
+                // Check alerts
+                var name = data.VesselName ?? _trackingService.LookupName(data.Mmsi);
+                if (_alertService.CheckAndFire(data.Mmsi, name))
+                {
+                    // Update alert display name if we now know it
+                    if (name != null)
+                        _alertService.UpdateAlertName(data.Mmsi, name);
+
+                    Application.MainLoop?.Invoke(() =>
+                    {
+                        // Audible bell
+                        Console.Write("\a");
+
+                        var displayName = name ?? data.Mmsi.ToString();
+                        AppendCommandOutput($"🔔 ALERT: {displayName} [{data.Mmsi}] heard at {data.Latitude:F4}, {data.Longitude:F4}");
+
+                        // Force log refresh to update highlighting
+                        RefreshLogPane();
+                    });
+                }
             };
         }
 
@@ -288,17 +312,30 @@ namespace AisToN2K.TUI
                 CanFocus = false
             };
 
-            _logOutput = new TextView()
+            _logListView = new ListView()
             {
                 X = 0,
                 Y = 0,
                 Width = Dim.Fill(),
                 Height = Dim.Fill(),
-                ReadOnly = true,
-                WordWrap = true,
+                AllowsMarking = false,
                 CanFocus = false
             };
-            _logFrame.Add(_logOutput);
+
+            // Per-row coloring: red background for alerted vessel log lines
+            _logListView.RowRender += (rowArgs) =>
+            {
+                if (rowArgs.Row >= 0 && rowArgs.Row < _logEntries.Count)
+                {
+                    var entry = _logEntries[rowArgs.Row];
+                    if (entry.Mmsi.HasValue && _alertService.IsAlerted(entry.Mmsi.Value))
+                    {
+                        rowArgs.RowAttribute = Terminal.Gui.Attribute.Make(Color.White, Color.Red);
+                    }
+                }
+            };
+
+            _logFrame.Add(_logListView);
 
             // Input field at bottom
             var inputLabel = new Label("> ")
@@ -563,14 +600,15 @@ namespace AisToN2K.TUI
 
         private void RefreshLogPane()
         {
-            var lines = _logService.GetLines();
-            var text = string.Join("\n", lines);
-            _logOutput!.Text = text;
+            _logEntries = _logService.GetEntries();
+            var displayLines = _logEntries.Select(e => e.Text).ToList();
+            _logListView!.SetSource(displayLines);
 
             // Auto-scroll to bottom
-            if (lines.Count > 0)
+            if (displayLines.Count > 0)
             {
-                _logOutput.MoveEnd();
+                _logListView.SelectedItem = displayLines.Count - 1;
+                _logListView.TopItem = Math.Max(0, displayLines.Count - (_logListView.Bounds.Height));
             }
         }
 
@@ -728,6 +766,12 @@ namespace AisToN2K.TUI
                     break;
                 case "targets":
                     ExecuteTargets(args);
+                    break;
+                case "alert":
+                    ExecuteAlert(args);
+                    break;
+                case "alerts":
+                    ExecuteAlerts(args);
                     break;
                 default:
                     AppendCommandOutput($"Unknown command: /{cmd}. Type / to see available commands.");
@@ -952,6 +996,21 @@ namespace AisToN2K.TUI
             {
                 AppendCommandOutput($"No vessel found matching '{search}'.");
                 AppendCommandOutput("Vessels appear after receiving AIS data. Try /connect first.");
+
+                // Offer to set an alert if the search is an MMSI
+                if (int.TryParse(search, out var alertMmsi))
+                {
+                    PromptForInput($"Set alert for MMSI {alertMmsi}? (y/n): ", response =>
+                    {
+                        if (response.Trim().Equals("y", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (_alertService.AddAlert(alertMmsi))
+                                AppendCommandOutput($"🔔 Alert set for MMSI {alertMmsi}. You'll be notified when heard.");
+                            else
+                                AppendCommandOutput($"Alert already exists for MMSI {alertMmsi}.");
+                        }
+                    });
+                }
                 return;
             }
 
@@ -1234,6 +1293,168 @@ namespace AisToN2K.TUI
             if (elapsed.TotalHours < 24)
                 return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m ago";
             return lastHeard.ToString("yyyy-MM-dd HH:mm");
+        }
+
+        private void ExecuteAlert(string[] args)
+        {
+            if (args.Length == 0)
+            {
+                AppendCommandOutput("Usage: /alert <name|mmsi> [clear]");
+                AppendCommandOutput("  Set or clear an alert for a specific vessel.");
+                return;
+            }
+
+            // Check for "clear" as last arg
+            bool clearMode = args.Length >= 2 &&
+                args[^1].Equals("clear", StringComparison.OrdinalIgnoreCase);
+            var searchParts = clearMode ? args[..^1] : args;
+            var search = string.Join(" ", searchParts);
+
+            // Try to resolve to MMSI
+            if (int.TryParse(search, out var mmsi))
+            {
+                if (clearMode)
+                {
+                    if (_alertService.RemoveAlert(mmsi))
+                    {
+                        var name = _trackingService.LookupName(mmsi);
+                        var display = name != null ? $"{name} [{mmsi}]" : $"[{mmsi}]";
+                        AppendCommandOutput($"✅ Alert cleared for {display}.");
+                    }
+                    else
+                    {
+                        AppendCommandOutput($"No alert found for MMSI {mmsi}.");
+                    }
+                }
+                else
+                {
+                    var name = _trackingService.LookupName(mmsi);
+                    if (_alertService.AddAlert(mmsi, name))
+                    {
+                        var display = name != null ? $"{name} [{mmsi}]" : $"[{mmsi}]";
+                        AppendCommandOutput($"🔔 Alert set for {display}. You'll be notified when heard.");
+                    }
+                    else
+                    {
+                        AppendCommandOutput($"Alert already exists for MMSI {mmsi}.");
+                    }
+                }
+                RefreshLogPane();
+                return;
+            }
+
+            // Name-based search — resolve to MMSI via known vessels
+            var matches = _trackingService.FindVessels(search);
+
+            if (matches.Count == 0)
+            {
+                AppendCommandOutput($"No vessel found matching '{search}'.");
+                AppendCommandOutput("Try using an MMSI number, or wait for the vessel to be heard first.");
+                return;
+            }
+
+            if (matches.Count == 1)
+            {
+                var (resolvedMmsi, name) = matches[0];
+                if (clearMode)
+                {
+                    if (_alertService.RemoveAlert(resolvedMmsi))
+                        AppendCommandOutput($"✅ Alert cleared for {name} [{resolvedMmsi}].");
+                    else
+                        AppendCommandOutput($"No alert found for {name} [{resolvedMmsi}].");
+                }
+                else
+                {
+                    if (_alertService.AddAlert(resolvedMmsi, name))
+                        AppendCommandOutput($"🔔 Alert set for {name} [{resolvedMmsi}]. You'll be notified when heard.");
+                    else
+                        AppendCommandOutput($"Alert already exists for {name} [{resolvedMmsi}].");
+                }
+                RefreshLogPane();
+                return;
+            }
+
+            // Multiple matches
+            AppendCommandOutput($"Multiple vessels match '{search}':");
+            for (int i = 0; i < matches.Count && i < 20; i++)
+            {
+                AppendCommandOutput($"  [{i + 1}] {matches[i].Name} (MMSI: {matches[i].Mmsi})");
+            }
+            if (matches.Count > 20)
+            {
+                AppendCommandOutput($"  ... and {matches.Count - 20} more. Try a more specific search.");
+                return;
+            }
+
+            PromptForInput("Enter number to select vessel: ", (input) =>
+            {
+                if (int.TryParse(input.Trim(), out var idx) && idx >= 1 && idx <= matches.Count)
+                {
+                    var (resolvedMmsi, name) = matches[idx - 1];
+                    if (clearMode)
+                    {
+                        if (_alertService.RemoveAlert(resolvedMmsi))
+                            AppendCommandOutput($"✅ Alert cleared for {name} [{resolvedMmsi}].");
+                        else
+                            AppendCommandOutput($"No alert found for {name} [{resolvedMmsi}].");
+                    }
+                    else
+                    {
+                        if (_alertService.AddAlert(resolvedMmsi, name))
+                            AppendCommandOutput($"🔔 Alert set for {name} [{resolvedMmsi}]. You'll be notified when heard.");
+                        else
+                            AppendCommandOutput($"Alert already exists for {name} [{resolvedMmsi}].");
+                    }
+                    RefreshLogPane();
+                }
+                else
+                {
+                    AppendCommandOutput("Selection cancelled.");
+                }
+            });
+        }
+
+        private void ExecuteAlerts(string[] args)
+        {
+            var subcommand = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+
+            switch (subcommand)
+            {
+                case "list":
+                    ShowAlertsList();
+                    break;
+                case "clear":
+                    _alertService.ClearAlerts();
+                    AppendCommandOutput("✅ All alerts cleared.");
+                    RefreshLogPane();
+                    break;
+                default:
+                    ShowAlertsList();
+                    break;
+            }
+        }
+
+        private void ShowAlertsList()
+        {
+            var alerts = _alertService.GetAlerts();
+            if (alerts.Count == 0)
+            {
+                AppendCommandOutput("No active alerts. Use /alert <name|mmsi> to set one.");
+                return;
+            }
+
+            AppendCommandOutput($"Active alerts ({alerts.Count}):");
+            AppendCommandOutput($"{"Name",-22} {"MMSI",-11} {"Set"}");
+            AppendCommandOutput(new string('─', 45));
+
+            foreach (var alert in alerts)
+            {
+                var name = alert.Name ?? _trackingService.LookupName(alert.Mmsi) ?? "—";
+                var displayName = name.Length > 20 ? name[..20] + "…" : name;
+                var setTime = alert.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                AppendCommandOutput($"{displayName,-22} {alert.Mmsi,-11} {setTime}");
+            }
+            AppendCommandOutput(new string('─', 45));
         }
 
         private void ExecuteStatus()
