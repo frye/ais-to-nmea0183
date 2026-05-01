@@ -114,6 +114,7 @@ namespace AisToN2K.Services
                 _webSocketService = new AisWebSocketService(_config.WebSocketUrl, _config.ApiKey, _debugMode);
                 _webSocketService.LogOutput = _logOutput;
                 _webSocketService.FileLogger = _fileLogger;
+                _webSocketService.VesselNameLookup = VesselNameLookup;
                 _webSocketService.VesselDataReceived += OnVesselDataReceived;
 
                 var boundingBox = new double[]

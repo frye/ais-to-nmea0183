@@ -19,6 +19,10 @@ namespace AisToN2K.Services
         
         public ILogOutput? LogOutput { get; set; }
         public DebugFileLogger? FileLogger { get; set; }
+        /// <summary>
+        /// Optional delegate to look up vessel names by MMSI from the persistent registry.
+        /// </summary>
+        public Func<int, string?>? VesselNameLookup { get; set; }
         private void Log(string message)
         {
             if (LogOutput != null)
@@ -268,7 +272,9 @@ namespace AisToN2K.Services
                     
                     if (_debugMode)
                     {
-                        Log($"🚢 Parsed Position Report: MMSI {aisData.Mmsi}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
+                        var name = aisData.VesselName ?? VesselNameLookup?.Invoke(aisData.Mmsi);
+                        var label = name != null ? $"{name} [{aisData.Mmsi}]" : $"[{aisData.Mmsi}]";
+                        Log($"🚢 Parsed Position Report: {label}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
                     }
                     
                     VesselDataReceived?.Invoke(this, aisData);
@@ -361,7 +367,9 @@ namespace AisToN2K.Services
                     
                     if (_debugMode)
                     {
-                        Log($"🚢 Parsed Class B Report: MMSI {aisData.Mmsi}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
+                        var name = aisData.VesselName ?? VesselNameLookup?.Invoke(aisData.Mmsi);
+                        var label = name != null ? $"{name} [{aisData.Mmsi}]" : $"[{aisData.Mmsi}]";
+                        Log($"🚢 Parsed Class B Report: {label}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
                     }
                     
                     VesselDataReceived?.Invoke(this, aisData);
