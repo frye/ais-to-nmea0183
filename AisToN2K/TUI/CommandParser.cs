@@ -147,11 +147,17 @@ namespace AisToN2K.TUI
                 ["targets"] = new("targets", "List or clear seen vessels",
                     "Display all vessels heard this session, or clear the list.\n\n" +
                     "Subcommands:\n" +
-                    "  /targets list    — Show a table of all heard vessels (name, MMSI, last heard)\n" +
-                    "  /targets clear   — Clear the session's heard-vessel list\n\n" +
-                    "Vessel name/MMSI pairs are persisted to disk across restarts.\n" +
+                    "  /targets list                — Alphabetical (A→Z)\n" +
+                    "  /targets list reverse        — Alphabetical (Z→A)\n" +
+                    "  /targets list time           — Most recently heard first\n" +
+                    "  /targets list time reverse   — Oldest first\n" +
+                    "  /targets list mmsi           — MMSI ascending\n" +
+                    "  /targets list mmsi reverse   — MMSI descending\n" +
+                    "  /targets clear               — Clear the session's heard-vessel list\n\n" +
+                    "Results are paginated. Press Enter for more pages.\n" +
+                    "Vessel name/MMSI pairs are persisted across restarts.\n" +
                     "The 'last heard' timestamps are session-only and reset on clear or restart.",
-                    "/targets <list|clear>"),
+                    "/targets <list [time|mmsi] [reverse]|clear>"),
             };
         }
     }

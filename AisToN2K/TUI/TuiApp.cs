@@ -1113,24 +1113,31 @@ namespace AisToN2K.TUI
 
         private void ExecuteTargets(string[] args)
         {
+            // No args or first arg is a sort/reverse option → treat as "list"
             var subcommand = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
 
             switch (subcommand)
             {
                 case "list":
-                    ExecuteTargetsList();
+                    ExecuteTargetsList(args.Length > 1 ? args[1..] : Array.Empty<string>());
                     break;
                 case "clear":
                     _trackingService.ClearTargets();
                     AppendCommandOutput("✅ Targets list cleared. New vessels will appear as they are heard.");
                     break;
+                // Allow sort keywords directly: /targets time, /targets mmsi, /targets reverse
+                case "time":
+                case "mmsi":
+                case "reverse":
+                    ExecuteTargetsList(args);
+                    break;
                 default:
-                    AppendCommandOutput($"Unknown subcommand: {subcommand}. Use /targets list or /targets clear.");
+                    AppendCommandOutput($"Unknown subcommand: {subcommand}. Use /targets list [time|mmsi] [reverse] or /targets clear.");
                     break;
             }
         }
 
-        private void ExecuteTargetsList()
+        private void ExecuteTargetsList(string[] sortArgs)
         {
             var targets = _trackingService.GetAllTargets();
 
@@ -1140,19 +1147,81 @@ namespace AisToN2K.TUI
                 return;
             }
 
+            // Parse sort field and reverse flag
+            var argsLower = sortArgs.Select(a => a.ToLowerInvariant()).ToArray();
+            bool reverse = argsLower.Contains("reverse");
+            string sortField = "name"; // default
+            if (argsLower.Contains("time"))
+                sortField = "time";
+            else if (argsLower.Contains("mmsi"))
+                sortField = "mmsi";
+
+            // Sort
+            IEnumerable<(int Mmsi, string Name, DateTime LastHeard)> sorted = sortField switch
+            {
+                "time" => reverse
+                    ? targets.OrderBy(t => t.LastHeard)
+                    : targets.OrderByDescending(t => t.LastHeard),
+                "mmsi" => reverse
+                    ? targets.OrderByDescending(t => t.Mmsi)
+                    : targets.OrderBy(t => t.Mmsi),
+                _ => reverse
+                    ? targets.OrderByDescending(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                    : targets.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase),
+            };
+            var sortedList = sorted.ToList();
+
+            // Calculate page size from command pane height (minus header, separator, footer)
+            int paneHeight = _commandPane?.Bounds.Height ?? 20;
+            int pageSize = Math.Max(5, paneHeight - 5); // header(1) + separator(1) + footer(2) + prompt(1)
+
+            var sortLabel = sortField switch
+            {
+                "time" => reverse ? "oldest first" : "newest first",
+                "mmsi" => reverse ? "MMSI desc" : "MMSI asc",
+                _ => reverse ? "Z→A" : "A→Z"
+            };
+
             // Table header
             AppendCommandOutput($"{"Name",-22} {"MMSI",-11} {"Last Heard"}");
             AppendCommandOutput(new string('─', 50));
 
-            foreach (var (mmsi, name, lastHeard) in targets)
+            ShowTargetsPage(sortedList, 0, pageSize, sortLabel);
+        }
+
+        private void ShowTargetsPage(List<(int Mmsi, string Name, DateTime LastHeard)> targets, int offset, int pageSize, string sortLabel)
+        {
+            int end = Math.Min(offset + pageSize, targets.Count);
+            for (int i = offset; i < end; i++)
             {
+                var (mmsi, name, lastHeard) = targets[i];
                 var displayName = name.Length > 20 ? name[..20] + "…" : name;
                 var timeStr = FormatLastHeard(lastHeard);
                 AppendCommandOutput($"{displayName,-22} {mmsi,-11} {timeStr}");
             }
 
-            AppendCommandOutput(new string('─', 50));
-            AppendCommandOutput($"— {targets.Count} target{(targets.Count != 1 ? "s" : "")} heard this session —");
+            if (end < targets.Count)
+            {
+                int remaining = targets.Count - end;
+                AppendCommandOutput(new string('─', 50));
+                AppendCommandOutput($"Showing {end}/{targets.Count} ({sortLabel}) — {remaining} more");
+                PromptForInput("Press Enter for more, or type anything to cancel:", response =>
+                {
+                    if (string.IsNullOrWhiteSpace(response))
+                    {
+                        ShowTargetsPage(targets, end, pageSize, sortLabel);
+                    }
+                    else
+                    {
+                        AppendCommandOutput($"— {targets.Count} target{(targets.Count != 1 ? "s" : "")} total ({sortLabel}) —");
+                    }
+                });
+            }
+            else
+            {
+                AppendCommandOutput(new string('─', 50));
+                AppendCommandOutput($"— {targets.Count} target{(targets.Count != 1 ? "s" : "")} heard this session ({sortLabel}) —");
+            }
         }
 
         private static string FormatLastHeard(DateTime lastHeard)
