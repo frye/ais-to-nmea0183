@@ -4,9 +4,9 @@ namespace AisToN2K.Tests.Unit
 {
     public class AlertServiceTests
     {
-        private AlertService CreateService(TimeSpan? cooldown = null)
+        private AlertService CreateService(TimeSpan? repeatDelay = null, TimeSpan? absenceThreshold = null)
         {
-            return new AlertService(AlertStore.CreateInMemory(), cooldown);
+            return new AlertService(AlertStore.CreateInMemory(), repeatDelay, absenceThreshold);
         }
 
         [Fact]
@@ -92,7 +92,7 @@ namespace AisToN2K.Tests.Unit
         }
 
         [Fact]
-        public void CheckAndFire_AlertedVessel_ReturnsTrue()
+        public void CheckAndFire_AlertedVessel_FiresImmediately()
         {
             var service = CreateService();
             service.AddAlert(123456789, "Test Vessel");
@@ -109,16 +109,38 @@ namespace AisToN2K.Tests.Unit
         }
 
         [Fact]
-        public void CheckAndFire_RespectsCooldown()
+        public void CheckAndFire_SecondCallWithinRepeatDelay_DoesNotFire()
         {
-            var service = CreateService(cooldown: TimeSpan.FromMinutes(5));
+            // repeatDelay = 2 min, so immediate second call should not fire
+            var service = CreateService(repeatDelay: TimeSpan.FromMinutes(2));
             service.AddAlert(123456789, "Test Vessel");
 
-            // First fire should succeed
             service.CheckAndFire(123456789, "Test Vessel").Should().BeTrue();
-
-            // Second fire within cooldown should fail
             service.CheckAndFire(123456789, "Test Vessel").Should().BeFalse();
+        }
+
+        [Fact]
+        public void CheckAndFire_AfterRepeatDelay_FiresOnceMore()
+        {
+            // Use a very short repeat delay so it fires on the next call
+            var service = CreateService(repeatDelay: TimeSpan.Zero);
+            service.AddAlert(123456789, "Test Vessel");
+
+            service.CheckAndFire(123456789, "Test Vessel").Should().BeTrue();  // first fire
+            service.CheckAndFire(123456789, "Test Vessel").Should().BeTrue();  // repeat fire (delay=0)
+        }
+
+        [Fact]
+        public void CheckAndFire_AfterRepeatFire_NoMoreFires()
+        {
+            // After both fires, no more until absence threshold
+            var service = CreateService(repeatDelay: TimeSpan.Zero, absenceThreshold: TimeSpan.FromHours(1));
+            service.AddAlert(123456789, "Test Vessel");
+
+            service.CheckAndFire(123456789, "Test Vessel").Should().BeTrue();  // fire 1
+            service.CheckAndFire(123456789, "Test Vessel").Should().BeTrue();  // fire 2 (repeat)
+            service.CheckAndFire(123456789, "Test Vessel").Should().BeFalse(); // no more
+            service.CheckAndFire(123456789, "Test Vessel").Should().BeFalse(); // still no
         }
 
         [Fact]
@@ -140,7 +162,7 @@ namespace AisToN2K.Tests.Unit
         [Fact]
         public void CheckAndFire_DoesNotFireEventWhenCoolingDown()
         {
-            var service = CreateService(cooldown: TimeSpan.FromMinutes(5));
+            var service = CreateService(repeatDelay: TimeSpan.FromMinutes(5));
             service.AddAlert(123456789, "Test Vessel");
 
             int fireCount = 0;
@@ -197,23 +219,23 @@ namespace AisToN2K.Tests.Unit
         }
 
         [Fact]
-        public void ClearAlerts_ResetsCooldown()
+        public void ClearAlerts_ResetsCooldownState()
         {
-            var service = CreateService(cooldown: TimeSpan.FromMinutes(5));
+            var service = CreateService(repeatDelay: TimeSpan.FromMinutes(5));
             service.AddAlert(123456789, "Test");
             service.CheckAndFire(123456789, "Test");
 
             service.ClearAlerts();
             service.AddAlert(123456789, "Test");
 
-            // Should fire again since cooldown was cleared
+            // Should fire again since cooldown state was cleared
             service.CheckAndFire(123456789, "Test").Should().BeTrue();
         }
 
         [Fact]
         public void RemoveAlert_ResetsCooldownForThatVessel()
         {
-            var service = CreateService(cooldown: TimeSpan.FromMinutes(5));
+            var service = CreateService(repeatDelay: TimeSpan.FromMinutes(5));
             service.AddAlert(123456789, "Test");
             service.CheckAndFire(123456789, "Test");
 
@@ -222,6 +244,37 @@ namespace AisToN2K.Tests.Unit
 
             // Should fire again since cooldown was removed with the alert
             service.CheckAndFire(123456789, "Test").Should().BeTrue();
+        }
+
+        [Fact]
+        public void CheckAndFire_AbsenceResetsFireCycle()
+        {
+            // absenceThreshold = 0 so any gap counts as "absent"
+            var service = CreateService(repeatDelay: TimeSpan.FromHours(1), absenceThreshold: TimeSpan.Zero);
+            service.AddAlert(123456789, "Test");
+
+            service.CheckAndFire(123456789, "Test").Should().BeTrue();  // first fire
+
+            // With absenceThreshold=0, next call sees lastHeard == now, gap >= 0 → resets
+            service.CheckAndFire(123456789, "Test").Should().BeTrue();  // absence reset
+        }
+
+        [Fact]
+        public void CheckAndFire_TwoFiresThenSilent_WithLargeAbsence()
+        {
+            // Verify the full cycle: fire1, fire2 (repeat), then silence
+            var service = CreateService(repeatDelay: TimeSpan.Zero, absenceThreshold: TimeSpan.FromHours(24));
+            service.AddAlert(123456789, "Test");
+
+            int fireCount = 0;
+            service.AlertTriggered += (s, e) => fireCount++;
+
+            service.CheckAndFire(123456789, "Test"); // fire 1
+            service.CheckAndFire(123456789, "Test"); // fire 2 (repeat, delay=0)
+            service.CheckAndFire(123456789, "Test"); // no fire
+            service.CheckAndFire(123456789, "Test"); // no fire
+
+            fireCount.Should().Be(2);
         }
     }
 }
