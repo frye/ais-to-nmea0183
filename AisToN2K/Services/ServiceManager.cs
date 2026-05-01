@@ -38,6 +38,14 @@ namespace AisToN2K.Services
                 _logOutput = value;
                 if (_statistics != null)
                     _statistics.LogOutput = value;
+                if (_webSocketService != null)
+                    _webSocketService.LogOutput = value;
+                if (_tcpServer != null)
+                    _tcpServer.LogOutput = value;
+                if (_udpServer != null)
+                    _udpServer.LogOutput = value;
+                if (_converter != null)
+                    _converter.LogOutput = value;
             }
         }
 
@@ -70,6 +78,7 @@ namespace AisToN2K.Services
 
             // Initialize NMEA converter
             _converter = new Nmea0183Converter(_debugMode);
+            _converter.LogOutput = _logOutput;
 
             StatusChanged?.Invoke(this, "Services initialized");
         }
@@ -85,6 +94,7 @@ namespace AisToN2K.Services
             {
                 // Initialize WebSocket service
                 _webSocketService = new AisWebSocketService(_config.WebSocketUrl, _config.ApiKey, _debugMode);
+                _webSocketService.LogOutput = _logOutput;
                 _webSocketService.VesselDataReceived += OnVesselDataReceived;
 
                 var boundingBox = new double[]
@@ -154,6 +164,7 @@ namespace AisToN2K.Services
             try
             {
                 _tcpServer = new TcpServer(_config.Network.Tcp.Host, _config.Network.Tcp.Port, _debugMode);
+                _tcpServer.LogOutput = _logOutput;
                 var started = await _tcpServer.StartAsync();
                 IsTcpServerRunning = started;
                 if (started)
@@ -212,6 +223,7 @@ namespace AisToN2K.Services
             try
             {
                 _udpServer = new UdpServer(_config.Network.Udp.Host, _config.Network.Udp.Port);
+                _udpServer.LogOutput = _logOutput;
                 var started = await _udpServer.StartAsync();
                 IsUdpServerRunning = started;
                 if (started)

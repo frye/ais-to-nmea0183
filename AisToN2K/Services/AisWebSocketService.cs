@@ -1,3 +1,4 @@
+using AisToN2K.Interfaces;
 using AisToN2K.Configuration;
 using AisToN2K.Models;
 using Newtonsoft.Json;
@@ -15,6 +16,15 @@ namespace AisToN2K.Services
         private readonly bool _debugMode;
         private bool _disposed = false;
         private int _debugMessageCount = 0;
+        
+        public ILogOutput? LogOutput { get; set; }
+        private void Log(string message)
+        {
+            if (LogOutput != null)
+                LogOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
+        }
         
         public event EventHandler<AisData>? VesselDataReceived;
         public event EventHandler<string>? ErrorOccurred;
@@ -34,18 +44,18 @@ namespace AisToN2K.Services
         {
             try
             {
-                Console.WriteLine("🔌 Connecting to AIS Stream WebSocket...");
+                Log("🔌 Connecting to AIS Stream WebSocket...");
                 var uri = new Uri(_webSocketUrl);
                 await _webSocket.ConnectAsync(uri, _cancellationTokenSource.Token);
                 
                 if (_webSocket.State == WebSocketState.Open)
                 {
-                    Console.WriteLine("✅ WebSocket connection established");
+                    Log("✅ WebSocket connection established");
                     
                     // If bounding box provided, send subscription within 3 seconds as required by AIS Stream
                     if (boundingBox != null)
                     {
-                        Console.WriteLine("📡 Sending subscription message...");
+                        Log("📡 Sending subscription message...");
                         var subscriptionTask = SubscribeToStreamAsync(boundingBox);
                         var timeoutTask = Task.Delay(3000);
                         
@@ -56,11 +66,11 @@ namespace AisToN2K.Services
                         }
                         
                         await subscriptionTask; // Ensure any exceptions are propagated
-                        Console.WriteLine("✅ Subscription sent successfully");
+                        Log("✅ Subscription sent successfully");
                     }
                     
                     // Start receiving messages
-                    Console.WriteLine("👂 Starting to listen for messages...");
+                    Log("👂 Starting to listen for messages...");
                     _ = Task.Run(ReceiveMessagesAsync);
                     
                     return true;
@@ -70,11 +80,11 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Failed to connect to AIS WebSocket: {ex.Message}");
+                Log($"❌ Failed to connect to AIS WebSocket: {ex.Message}");
                 if (ex.Message.Contains("concurrent"))
                 {
-                    Console.WriteLine("💡 This usually means another instance is using the same API key");
-                    Console.WriteLine("   Please close other applications or wait 60 seconds before retrying");
+                    Log("💡 This usually means another instance is using the same API key");
+                    Log("   Please close other applications or wait 60 seconds before retrying");
                 }
                 ErrorOccurred?.Invoke(this, ex.Message);
                 return false;
@@ -113,7 +123,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Failed to send subscription: {ex.Message}");
+                Log($"❌ Failed to send subscription: {ex.Message}");
                 throw;
             }
         }
@@ -155,7 +165,7 @@ namespace AisToN2K.Services
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"⚠️  Failed to decode binary message: {ex.Message}");
+                                Log($"⚠️  Failed to decode binary message: {ex.Message}");
                             }
                         }
                     }
@@ -174,7 +184,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error receiving WebSocket messages: {ex.Message}");
+                Log($"Error receiving WebSocket messages: {ex.Message}");
                 ErrorOccurred?.Invoke(this, ex.Message);
             }
         }
@@ -185,7 +195,7 @@ namespace AisToN2K.Services
             {
                 if (_debugMode)
                 {
-                    Console.WriteLine($"🔍 ProcessMessageAsync called with message length: {message.Length}");
+                    Log($"🔍 ProcessMessageAsync called with message length: {message.Length}");
                 }
 
                 // Debug logging for received messages
@@ -194,36 +204,36 @@ namespace AisToN2K.Services
                     _debugMessageCount++;
                     if (_debugMessageCount <= 3)
                     {
-                        Console.WriteLine($"🔍 Full Message #{_debugMessageCount}: {message}");
+                        Log($"🔍 Full Message #{_debugMessageCount}: {message}");
                     }
                     else if (message.Length > 50)
                     {
-                        Console.WriteLine($"🔍 Received: {message.Substring(0, Math.Min(150, message.Length))}...");
+                        Log($"🔍 Received: {message.Substring(0, Math.Min(150, message.Length))}...");
                     }
                 }
                 
                 // Parse the AIS Stream message
-                if (_debugMode) Console.WriteLine($"🔍 About to deserialize JSON...");
+                if (_debugMode) Log($"🔍 About to deserialize JSON...");
                 AisStreamMessage? aisStreamMessage = null;
                 try
                 {
                     aisStreamMessage = JsonConvert.DeserializeObject<AisStreamMessage>(message);
-                    if (_debugMode) Console.WriteLine($"🔍 JSON deserialized successfully");
+                    if (_debugMode) Log($"🔍 JSON deserialized successfully");
                 }
                 catch (Exception jsonEx)
                 {
-                    if (_debugMode) Console.WriteLine($"❌ JSON deserialization failed: {jsonEx.Message}");
+                    if (_debugMode) Log($"❌ JSON deserialization failed: {jsonEx.Message}");
                     return; // Skip processing this message
                 }
                 
                 if (_debugMode && _debugMessageCount <= 15)
                 {
-                    Console.WriteLine($"🔍 Parsed MessageType: '{aisStreamMessage?.MessageType}'");
-                    Console.WriteLine($"🔍 Has Message: {aisStreamMessage?.Message != null}");
-                    Console.WriteLine($"🔍 Has Message.PositionReport: {aisStreamMessage?.Message?.PositionReport != null}");
-                    Console.WriteLine($"🔍 Has Message.StandardClassBPositionReport: {aisStreamMessage?.Message?.StandardClassBPositionReport != null}");
-                    Console.WriteLine($"🔍 Has Message.ShipStaticData: {aisStreamMessage?.Message?.ShipStaticData != null}");
-                    Console.WriteLine($"🔍 Has Message.StaticDataReport: {aisStreamMessage?.Message?.StaticDataReport != null}");
+                    Log($"🔍 Parsed MessageType: '{aisStreamMessage?.MessageType}'");
+                    Log($"🔍 Has Message: {aisStreamMessage?.Message != null}");
+                    Log($"🔍 Has Message.PositionReport: {aisStreamMessage?.Message?.PositionReport != null}");
+                    Log($"🔍 Has Message.StandardClassBPositionReport: {aisStreamMessage?.Message?.StandardClassBPositionReport != null}");
+                    Log($"🔍 Has Message.ShipStaticData: {aisStreamMessage?.Message?.ShipStaticData != null}");
+                    Log($"🔍 Has Message.StaticDataReport: {aisStreamMessage?.Message?.StaticDataReport != null}");
                 }
                 
                 // The message type is determined by which property is present in the Message object
@@ -255,7 +265,7 @@ namespace AisToN2K.Services
                     
                     if (_debugMode)
                     {
-                        Console.WriteLine($"🚢 Parsed Position Report: MMSI {aisData.Mmsi}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
+                        Log($"🚢 Parsed Position Report: MMSI {aisData.Mmsi}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
                     }
                     
                     VesselDataReceived?.Invoke(this, aisData);
@@ -348,7 +358,7 @@ namespace AisToN2K.Services
                     
                     if (_debugMode)
                     {
-                        Console.WriteLine($"🚢 Parsed Class B Report: MMSI {aisData.Mmsi}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
+                        Log($"🚢 Parsed Class B Report: MMSI {aisData.Mmsi}, {aisData.Latitude:F4},{aisData.Longitude:F4}");
                     }
                     
                     VesselDataReceived?.Invoke(this, aisData);
@@ -358,7 +368,7 @@ namespace AisToN2K.Services
                     // Debug logging for ignored message types
                     if (_debugMode)
                     {
-                        Console.WriteLine($"⚠️ Ignored message type: {aisStreamMessage?.MessageType ?? "Unknown"}");
+                        Log($"⚠️ Ignored message type: {aisStreamMessage?.MessageType ?? "Unknown"}");
                     }
                     // Silently ignore unhandled message types to reduce noise
                     // Only handle: PositionReport, ShipStaticData, StandardClassBPositionReport, StaticDataReport
@@ -387,7 +397,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error closing WebSocket: {ex.Message}");
+                Log($"Error closing WebSocket: {ex.Message}");
             }
         }
         

@@ -90,7 +90,15 @@ namespace AisToN2K.TUI
             // Auto-start services after UI is ready
             AutoStartServices();
 
+            // Periodic status refresh (every 2 seconds)
+            var statusTimer = new System.Threading.Timer(_ =>
+            {
+                Application.MainLoop?.Invoke(() => RefreshStatusPanel());
+            }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+
             Application.Run(_top);
+
+            statusTimer.Dispose();
             Application.Shutdown();
 
             // Cleanup
@@ -324,6 +332,17 @@ namespace AisToN2K.TUI
 
                 if (key == Key.Enter)
                 {
+                    // If slash menu is visible, Enter selects the highlighted command
+                    if (_slashMenuVisible && _filteredCommands.Count > 0)
+                    {
+                        var selected = _filteredCommands[_slashMenu!.SelectedItem];
+                        _inputField.Text = $"/{selected.Name} ";
+                        _inputField.CursorPosition = _inputField.Text.Length;
+                        HideSlashMenu();
+                        e.Handled = true;
+                        return;
+                    }
+
                     var text = _inputField.Text?.ToString() ?? "";
                     _inputField.Text = "";
                     HideSlashMenu();
@@ -360,6 +379,7 @@ namespace AisToN2K.TUI
                     if (_slashMenuVisible && _slashMenu!.SelectedItem > 0)
                     {
                         _slashMenu.SelectedItem--;
+                        _slashMenu.SetNeedsDisplay();
                         e.Handled = true;
                         return;
                     }
@@ -378,6 +398,7 @@ namespace AisToN2K.TUI
                     if (_slashMenuVisible && _slashMenu!.SelectedItem < _filteredCommands.Count - 1)
                     {
                         _slashMenu.SelectedItem++;
+                        _slashMenu.SetNeedsDisplay();
                         e.Handled = true;
                         return;
                     }

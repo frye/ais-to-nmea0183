@@ -1,3 +1,4 @@
+using AisToN2K.Interfaces;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -15,6 +16,15 @@ namespace AisToN2K.Services
         private CancellationTokenSource? _cancellationTokenSource;
         private bool _isRunning;
         private bool _disposed;
+
+        public ILogOutput? LogOutput { get; set; }
+        private void Log(string message)
+        {
+            if (LogOutput != null)
+                LogOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
+        }
 
         // Statistics
         public int ConnectedClients => _clients.Count;
@@ -50,7 +60,7 @@ namespace AisToN2K.Services
                 _isRunning = true;
                 _cancellationTokenSource = new CancellationTokenSource();
 
-                Console.WriteLine($"✅ TCP server started on {_host}:{_port}");
+                Log($"✅ TCP server started on {_host}:{_port}");
 
                 // Start accepting clients in background
                 _ = Task.Run(async () => await AcceptClientsAsync(_cancellationTokenSource.Token));
@@ -62,7 +72,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Failed to start TCP server: {ex.Message}");
+                Log($"❌ Failed to start TCP server: {ex.Message}");
                 return false;
             }
         }
@@ -92,7 +102,7 @@ namespace AisToN2K.Services
                 {
                     if (_isRunning)
                     {
-                        Console.WriteLine($"⚠️ Error accepting TCP client: {ex.Message}");
+                        Log($"⚠️ Error accepting TCP client: {ex.Message}");
                     }
                 }
             }
@@ -143,7 +153,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"🔌 TCP client {client.Id} disconnected: {ex.Message}");
+                Log($"🔌 TCP client {client.Id} disconnected: {ex.Message}");
             }
             finally
             {
@@ -183,7 +193,7 @@ namespace AisToN2K.Services
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"⚠️ Failed to send to TCP client {client.Id}: {ex.Message}");
+                    Log($"⚠️ Failed to send to TCP client {client.Id}: {ex.Message}");
                     failedClients.Add(client.Id);
                 }
                 return false;
@@ -201,7 +211,7 @@ namespace AisToN2K.Services
             {
                 if (_debugMode)
                 {
-                    Console.WriteLine($"📤 TCP broadcast to {successfulSends} clients ({messageBytes.Length} bytes)");
+                    Log($"📤 TCP broadcast to {successfulSends} clients ({messageBytes.Length} bytes)");
                 }
                 return true;
             }
@@ -216,11 +226,11 @@ namespace AisToN2K.Services
                 try
                 {
                     client.TcpClient.Close();
-                    Console.WriteLine($"🔌 TCP client removed: {clientId} (Remaining: {_clients.Count})");
+                    Log($"🔌 TCP client removed: {clientId} (Remaining: {_clients.Count})");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"⚠️ Error removing TCP client {clientId}: {ex.Message}");
+                    Log($"⚠️ Error removing TCP client {clientId}: {ex.Message}");
                 }
             }
         }
@@ -259,7 +269,7 @@ namespace AisToN2K.Services
                 {
                     if (_isRunning)
                     {
-                        Console.WriteLine($"⚠️ TCP cleanup error: {ex.Message}");
+                        Log($"⚠️ TCP cleanup error: {ex.Message}");
                     }
                 }
             }
@@ -279,7 +289,7 @@ namespace AisToN2K.Services
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"⚠️ Error closing TCP client: {ex.Message}");
+                    Log($"⚠️ Error closing TCP client: {ex.Message}");
                 }
             });
 
@@ -291,12 +301,12 @@ namespace AisToN2K.Services
                 
                 if (completedTask == timeoutTask)
                 {
-                    Console.WriteLine("⚠️ TCP client cleanup timed out");
+                    Log("⚠️ TCP client cleanup timed out");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Error during TCP client cleanup: {ex.Message}");
+                Log($"⚠️ Error during TCP client cleanup: {ex.Message}");
             }
             
             _clients.Clear();
@@ -308,14 +318,14 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Error stopping TCP listener: {ex.Message}");
+                Log($"⚠️ Error stopping TCP listener: {ex.Message}");
             }
             finally
             {
                 _listener = null;
             }
 
-            Console.WriteLine("🛑 TCP server stopped");
+            Log("🛑 TCP server stopped");
         }
 
         public void Dispose()
@@ -330,13 +340,13 @@ namespace AisToN2K.Services
                         var stopTask = StopAsync();
                         if (!stopTask.Wait(2000)) // Wait up to 2 seconds for graceful shutdown
                         {
-                            Console.WriteLine("⚠️ TCP server dispose timed out");
+                            Log("⚠️ TCP server dispose timed out");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"⚠️ Error during TCP server dispose: {ex.Message}");
+                    Log($"⚠️ Error during TCP server dispose: {ex.Message}");
                 }
                 finally
                 {

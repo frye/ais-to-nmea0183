@@ -1,3 +1,4 @@
+using AisToN2K.Interfaces;
 using AisToN2K.Models;
 using System.Text;
 
@@ -7,6 +8,15 @@ namespace AisToN2K.Services
     {
         private int _sequence = 0;
         private readonly bool _debugMode;
+
+        public ILogOutput? LogOutput { get; set; }
+        private void Log(string message)
+        {
+            if (LogOutput != null)
+                LogOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
+        }
 
         public Nmea0183Converter(bool debugMode = false)
         {
@@ -64,7 +74,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error converting to NMEA 0183: {ex.Message}");
+                Log($"❌ Error converting to NMEA 0183: {ex.Message}");
                 return null;
             }
         }
@@ -101,7 +111,7 @@ namespace AisToN2K.Services
 
             if (_debugMode)
             {
-                Console.WriteLine($"🔍 NMEA Message for MMSI {aisData.Mmsi}: {nmeaMessage.Trim()}");
+                Log($"🔍 NMEA Message for MMSI {aisData.Mmsi}: {nmeaMessage.Trim()}");
             }
             
             return nmeaMessage;
@@ -166,8 +176,8 @@ namespace AisToN2K.Services
             {
                 var latOriginalRaw = (int)Math.Round(lat * 600000);
                 var lonOriginalRaw = (int)Math.Round(lon * 600000);
-                Console.WriteLine($"🔍 COORD DEBUG: Original Lat {lat:F6} -> {latOriginalRaw}, Lon {lon:F6} -> {lonOriginalRaw}");
-                Console.WriteLine($"🔍 COORD DEBUG: After limits/encoding Lat -> {latRaw}, Lon -> {lonRaw}");
+                Log($"🔍 COORD DEBUG: Original Lat {lat:F6} -> {latOriginalRaw}, Lon {lon:F6} -> {lonOriginalRaw}");
+                Log($"🔍 COORD DEBUG: After limits/encoding Lat -> {latRaw}, Lon -> {lonRaw}");
             }
             
             // Test decoding to verify round-trip accuracy
@@ -183,8 +193,8 @@ namespace AisToN2K.Services
             
             if (_debugMode)
             {
-                Console.WriteLine($"🔍 COORD DEBUG: Decoded back to Lat {decodedLat:F6}, Lon {decodedLon:F6}");
-                Console.WriteLine($"🔍 COORD DEBUG: Difference Lat {Math.Abs(lat - decodedLat):F8}, Lon {Math.Abs(lon - decodedLon):F8}");
+                Log($"🔍 COORD DEBUG: Decoded back to Lat {decodedLat:F6}, Lon {decodedLon:F6}");
+                Log($"🔍 COORD DEBUG: Difference Lat {Math.Abs(lat - decodedLat):F8}, Lon {Math.Abs(lon - decodedLon):F8}");
             }
 
             // Speed Over Ground: 0.1 knot resolution, 10-bit field (0-102.3 knots, 1023 = not available)
