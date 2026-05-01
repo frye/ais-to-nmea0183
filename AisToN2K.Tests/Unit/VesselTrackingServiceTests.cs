@@ -235,5 +235,102 @@ namespace AisToN2K.Tests.Unit
                 Timestamp = DateTime.UtcNow
             };
         }
+
+        // ===== Pending Tracking Tests =====
+
+        [Fact]
+        public void StartPendingTracking_SetsStateCorrectly()
+        {
+            _service.StartPendingTracking(123456789);
+
+            _service.IsTracking.Should().BeTrue();
+            _service.IsPendingTracking.Should().BeTrue();
+            _service.TrackedMmsi.Should().Be(123456789);
+            _service.TrackedVesselName.Should().Be("123456789");
+            _service.TrackingStartTime.Should().BeNull();
+        }
+
+        [Fact]
+        public void StartPendingTracking_ProcessVesselData_ActivatesTracking()
+        {
+            _service.StartPendingTracking(123456789);
+
+            _service.ProcessVesselData(CreateAisData(123456789, 48.5, -122.5, name: "Test Vessel"));
+
+            _service.IsTracking.Should().BeTrue();
+            _service.IsPendingTracking.Should().BeFalse();
+            _service.TrackedVesselName.Should().Be("Test Vessel");
+            _service.TrackingStartTime.Should().NotBeNull();
+        }
+
+        [Fact]
+        public void StartPendingTracking_FiresPendingTrackingActivatedEvent()
+        {
+            _service.StartPendingTracking(123456789);
+
+            (int Mmsi, string Name)? activated = null;
+            _service.PendingTrackingActivated += (s, e) => activated = e;
+
+            _service.ProcessVesselData(CreateAisData(123456789, 48.5, -122.5, name: "Test Vessel"));
+
+            activated.Should().NotBeNull();
+            activated!.Value.Mmsi.Should().Be(123456789);
+            activated.Value.Name.Should().Be("Test Vessel");
+        }
+
+        [Fact]
+        public void StartPendingTracking_IgnoresNonMatchingVessels()
+        {
+            _service.StartPendingTracking(123456789);
+
+            _service.ProcessVesselData(CreateAisData(999999999, 48.5, -122.5, name: "Other"));
+
+            _service.IsPendingTracking.Should().BeTrue();
+            _service.TrackedVesselName.Should().Be("123456789");
+        }
+
+        [Fact]
+        public void StartPendingTracking_ActivatesWithMmsiStringIfNoName()
+        {
+            _service.StartPendingTracking(123456789);
+
+            _service.ProcessVesselData(CreateAisData(123456789, 48.5, -122.5));
+
+            _service.IsPendingTracking.Should().BeFalse();
+            _service.TrackedVesselName.Should().Be("123456789");
+        }
+
+        [Fact]
+        public void StartPendingTracking_StopTrackingClearsPendingState()
+        {
+            _service.StartPendingTracking(123456789);
+
+            var points = _service.StopTracking();
+
+            _service.IsTracking.Should().BeFalse();
+            _service.IsPendingTracking.Should().BeFalse();
+            points.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void StartPendingTracking_TrackPointsAccumulateAfterActivation()
+        {
+            _service.StartPendingTracking(123456789);
+
+            _service.ProcessVesselData(CreateAisData(123456789, 48.5, -122.5, name: "Test"));
+            _service.ProcessVesselData(CreateAisData(123456789, 48.51, -122.51, name: "Test"));
+
+            var points = _service.StopTracking();
+            points.Should().HaveCount(2);
+            _service.TotalDistanceNm.Should().Be(0); // Reset by StopTracking
+        }
+
+        [Fact]
+        public void StartTracking_IsNotPending()
+        {
+            _service.StartTracking(123456789, "Known Vessel");
+
+            _service.IsPendingTracking.Should().BeFalse();
+        }
     }
 }

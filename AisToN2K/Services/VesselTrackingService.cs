@@ -27,11 +27,21 @@ namespace AisToN2K.Services
         public int? TrackedMmsi { get; private set; }
         public string? TrackedVesselName { get; private set; }
         public bool IsTracking => TrackedMmsi.HasValue;
+        /// <summary>
+        /// True when tracking is set for an MMSI but no data has been received yet.
+        /// </summary>
+        public bool IsPendingTracking { get; private set; }
         public DisplayUnits Units { get; set; } = DisplayUnits.Nautical;
 
         public double TotalDistanceNm { get; private set; }
         public double? CurrentSogKnots { get; private set; }
         public DateTime? TrackingStartTime { get; private set; }
+
+        /// <summary>
+        /// Fired when pending tracking activates (vessel first heard).
+        /// Args: (mmsi, vesselName)
+        /// </summary>
+        public event EventHandler<(int Mmsi, string Name)>? PendingTrackingActivated;
 
         // Persistent: vessel name/MMSI pairs (disk-backed)
         private Dictionary<int, string> _persistentVessels = new();
@@ -180,9 +190,29 @@ namespace AisToN2K.Services
             {
                 TrackedMmsi = mmsi;
                 TrackedVesselName = vesselName;
+                IsPendingTracking = false;
                 TotalDistanceNm = 0;
                 CurrentSogKnots = null;
                 TrackingStartTime = DateTime.UtcNow;
+                _trackPoints.Clear();
+            }
+            TrackingUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Start pending tracking for an MMSI that hasn't been heard yet.
+        /// Tracking will activate automatically when the vessel first transmits.
+        /// </summary>
+        public void StartPendingTracking(int mmsi)
+        {
+            lock (_lock)
+            {
+                TrackedMmsi = mmsi;
+                TrackedVesselName = mmsi.ToString();
+                IsPendingTracking = true;
+                TotalDistanceNm = 0;
+                CurrentSogKnots = null;
+                TrackingStartTime = null;
                 _trackPoints.Clear();
             }
             TrackingUpdated?.Invoke(this, EventArgs.Empty);
@@ -199,6 +229,7 @@ namespace AisToN2K.Services
                 points = new List<TrackPoint>(_trackPoints);
                 TrackedMmsi = null;
                 TrackedVesselName = null;
+                IsPendingTracking = false;
                 TotalDistanceNm = 0;
                 CurrentSogKnots = null;
                 TrackingStartTime = null;
@@ -220,8 +251,26 @@ namespace AisToN2K.Services
             if (!IsTracking || data.Mmsi != TrackedMmsi)
                 return;
 
+            // Transition from pending to active tracking on first data
+            bool justActivated = false;
+            if (IsPendingTracking)
+            {
+                string vesselName;
+                lock (_lock)
+                {
+                    IsPendingTracking = false;
+                    TrackingStartTime = DateTime.UtcNow;
+                    vesselName = !string.IsNullOrWhiteSpace(data.VesselName)
+                        ? data.VesselName
+                        : TrackedVesselName ?? data.Mmsi.ToString();
+                    TrackedVesselName = vesselName;
+                }
+                justActivated = true;
+                PendingTrackingActivated?.Invoke(this, (data.Mmsi, vesselName));
+            }
+
             // Update vessel name if we get a better one
-            if (!string.IsNullOrWhiteSpace(data.VesselName))
+            if (!justActivated && !string.IsNullOrWhiteSpace(data.VesselName))
             {
                 lock (_lock)
                 {

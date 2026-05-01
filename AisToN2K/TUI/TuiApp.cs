@@ -596,6 +596,20 @@ namespace AisToN2K.TUI
                     RefreshStatusPanel();
                 });
             };
+
+            _trackingService.PendingTrackingActivated += (s, e) =>
+            {
+                Application.MainLoop?.Invoke(() =>
+                {
+                    Console.Write("\a");
+                    AppendCommandOutput($"🚢 Tracking activated: {e.Name} [{e.Mmsi}] — vessel heard!");
+
+                    // Remove the internal tracking alert (no longer needed)
+                    _alertService.RemoveAlert(e.Mmsi);
+
+                    RefreshTrackingBar();
+                });
+            };
         }
 
         private void RefreshLogPane()
@@ -617,11 +631,19 @@ namespace AisToN2K.TUI
             if (_trackingService.IsTracking)
             {
                 _trackingBar!.Visible = true;
-                var name = _trackingService.TrackedVesselName ?? "Unknown";
-                var dist = _trackingService.FormatDistance();
-                var sog = _trackingService.FormatCurrentSpeed();
-                var avg = _trackingService.FormatAverageSpeed();
-                _trackingLabel!.Text = $"🚢 {name}  |  Distance: {dist}  |  SOG: {sog}  |  Avg: {avg}";
+
+                if (_trackingService.IsPendingTracking)
+                {
+                    _trackingLabel!.Text = $"⏳ Waiting for MMSI {_trackingService.TrackedMmsi}...  |  Tracking will start when vessel is heard";
+                }
+                else
+                {
+                    var name = _trackingService.TrackedVesselName ?? "Unknown";
+                    var dist = _trackingService.FormatDistance();
+                    var sog = _trackingService.FormatCurrentSpeed();
+                    var avg = _trackingService.FormatAverageSpeed();
+                    _trackingLabel!.Text = $"🚢 {name}  |  Distance: {dist}  |  SOG: {sog}  |  Avg: {avg}";
+                }
 
                 // Adjust layout when tracking bar is visible
                 _commandPane!.Y = 3;
@@ -970,8 +992,15 @@ namespace AisToN2K.TUI
                 AppendCommandOutput("Usage: /track <name|mmsi|stop>");
                 if (_trackingService.IsTracking)
                 {
-                    AppendCommandOutput($"  Currently tracking: {_trackingService.TrackedVesselName} (MMSI: {_trackingService.TrackedMmsi})");
-                    AppendCommandOutput($"  Distance: {_trackingService.FormatDistance()}, SOG: {_trackingService.FormatCurrentSpeed()}, Avg: {_trackingService.FormatAverageSpeed()}");
+                    if (_trackingService.IsPendingTracking)
+                    {
+                        AppendCommandOutput($"  Pending: MMSI {_trackingService.TrackedMmsi} — waiting for first transmission");
+                    }
+                    else
+                    {
+                        AppendCommandOutput($"  Currently tracking: {_trackingService.TrackedVesselName} (MMSI: {_trackingService.TrackedMmsi})");
+                        AppendCommandOutput($"  Distance: {_trackingService.FormatDistance()}, SOG: {_trackingService.FormatCurrentSpeed()}, Avg: {_trackingService.FormatAverageSpeed()}");
+                    }
                 }
                 return;
             }
@@ -994,22 +1023,18 @@ namespace AisToN2K.TUI
 
             if (matches.Count == 0)
             {
-                AppendCommandOutput($"No vessel found matching '{search}'.");
-                AppendCommandOutput("Vessels appear after receiving AIS data. Try /connect first.");
-
-                // Offer to set an alert if the search is an MMSI
-                if (int.TryParse(search, out var alertMmsi))
+                // If input is an MMSI, start pending tracking immediately
+                if (int.TryParse(search, out var pendingMmsi))
                 {
-                    PromptForInput($"Set alert for MMSI {alertMmsi}? (y/n): ", response =>
-                    {
-                        if (response.Trim().Equals("y", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (_alertService.AddAlert(alertMmsi))
-                                AppendCommandOutput($"🔔 Alert set for MMSI {alertMmsi}. You'll be notified when heard.");
-                            else
-                                AppendCommandOutput($"Alert already exists for MMSI {alertMmsi}.");
-                        }
-                    });
+                    _trackingService.StartPendingTracking(pendingMmsi);
+                    _alertService.AddAlert(pendingMmsi);
+                    AppendCommandOutput($"⏳ Tracking set for MMSI {pendingMmsi}. Waiting for vessel to transmit...");
+                    RefreshTrackingBar();
+                }
+                else
+                {
+                    AppendCommandOutput($"No vessel found matching '{search}'.");
+                    AppendCommandOutput("Vessels appear after receiving AIS data. Try /connect first, or use an MMSI number.");
                 }
                 return;
             }
