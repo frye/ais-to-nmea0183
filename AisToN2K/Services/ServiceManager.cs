@@ -60,6 +60,12 @@ namespace AisToN2K.Services
         /// </summary>
         public event EventHandler<AisData>? VesselDataForTracking;
 
+        /// <summary>
+        /// Optional delegate to look up vessel names by MMSI from the persistent registry.
+        /// Used as fallback when AIS messages don't include a vessel name.
+        /// </summary>
+        public Func<int, string?>? VesselNameLookup { get; set; }
+
         public ServiceManager(AppConfig config, bool debugMode = false, string? logPathOverride = null)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -303,7 +309,10 @@ namespace AisToN2K.Services
                 VesselDataForTracking?.Invoke(this, vesselData);
 
                 // Extract vessel information from AisData object
-                string vesselName = vesselData.VesselName ?? vesselData.Mmsi.ToString();
+                string? resolvedName = vesselData.VesselName ?? VesselNameLookup?.Invoke(vesselData.Mmsi);
+                string displayLabel = resolvedName != null
+                    ? $"{resolvedName} [{vesselData.Mmsi}]"
+                    : $"[{vesselData.Mmsi}]";
                 double latitude = vesselData.Latitude;
                 double longitude = vesselData.Longitude;
                 int messageType = vesselData.MessageType;
@@ -311,18 +320,18 @@ namespace AisToN2K.Services
                 _statistics?.IncrementMessageReceived(messageType);
 
                 // Debug file logging for received WebSocket data
-                _fileLogger?.LogWebSocket(messageType, vesselData.Mmsi, vesselName, latitude, longitude);
+                _fileLogger?.LogWebSocket(messageType, vesselData.Mmsi, resolvedName ?? vesselData.Mmsi.ToString(), latitude, longitude);
 
                 // Debug logging for received vessel data
                 if (_debugMode)
                 {
-                    Log($"📥 RX: Type {messageType} | MMSI: {vesselData.Mmsi} | {vesselName} | {latitude:F4}, {longitude:F4}");
+                    Log($"📥 RX: Type {messageType} | {displayLabel} | {latitude:F4}, {longitude:F4}");
                 }
 
                 // Show occasional progress indicators when not in debug mode
                 if (!_debugMode && _statistics != null && _statistics.TotalMessagesReceived % 10 == 0)
                 {
-                    Log($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {vesselName})");
+                    Log($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {displayLabel})");
                 }
 
                 // Convert to NMEA 0183
@@ -348,7 +357,7 @@ namespace AisToN2K.Services
                 // Log message details if enabled
                 if (_config.ApplicationLogging.LogNmeaMessages)
                 {
-                    _statistics?.LogMessageDetails(messageType, vesselName, latitude, longitude, nmeaMessage);
+                    _statistics?.LogMessageDetails(messageType, resolvedName ?? vesselData.Mmsi.ToString(), latitude, longitude, nmeaMessage);
                 }
 
                 // Broadcast via TCP

@@ -12,7 +12,7 @@ namespace AisToN2K.Services
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ais-to-nmea0183");
 
-        private readonly string _filePath;
+        private readonly string? _filePath;
         private readonly object _lock = new();
         private DateTime _lastSaveTime = DateTime.MinValue;
         private bool _dirty = false;
@@ -24,11 +24,25 @@ namespace AisToN2K.Services
             _filePath = Path.Combine(dir, "known-vessels.json");
         }
 
+        private VesselRegistryStore(bool inMemory)
+        {
+            _filePath = null; // No file — in-memory only
+        }
+
+        /// <summary>
+        /// Create an in-memory-only store that never reads from or writes to disk.
+        /// Used for tests and when no persistence is needed.
+        /// </summary>
+        public static VesselRegistryStore CreateInMemory() => new(inMemory: true);
+
         /// <summary>
         /// Load persisted vessels from disk. Returns empty dictionary if file doesn't exist.
         /// </summary>
         public Dictionary<int, string> Load()
         {
+            if (_filePath == null)
+                return new Dictionary<int, string>();
+
             try
             {
                 if (!File.Exists(_filePath))
@@ -59,6 +73,8 @@ namespace AisToN2K.Services
         /// </summary>
         public void MarkDirty(Dictionary<int, string> vessels)
         {
+            if (_filePath == null) return;
+
             lock (_lock)
             {
                 _dirty = true;
@@ -73,6 +89,8 @@ namespace AisToN2K.Services
         /// </summary>
         public void Flush(Dictionary<int, string> vessels)
         {
+            if (_filePath == null) return;
+
             lock (_lock)
             {
                 _debounceTimer?.Dispose();
@@ -94,6 +112,8 @@ namespace AisToN2K.Services
 
         private void SaveToDisk(Dictionary<int, string> vessels)
         {
+            if (_filePath == null) return;
+
             try
             {
                 var dir = Path.GetDirectoryName(_filePath)!;

@@ -73,6 +73,7 @@ namespace AisToN2K.TUI
 
             // Hook vessel data for tracking
             _serviceManager.StatusChanged += OnStatusChanged;
+            _serviceManager.VesselNameLookup = _trackingService.LookupName;
 
             // Subscribe to the VesselDataReceived on the ServiceManager
             SubscribeToVesselData();

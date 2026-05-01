@@ -44,7 +44,7 @@ namespace AisToN2K.Services
 
         public VesselTrackingService(VesselRegistryStore? registryStore = null)
         {
-            _registryStore = registryStore ?? new VesselRegistryStore();
+            _registryStore = registryStore ?? VesselRegistryStore.CreateInMemory();
             _persistentVessels = _registryStore.Load();
         }
 
@@ -91,6 +91,20 @@ namespace AisToN2K.Services
                 Dictionary<int, string> snapshot;
                 lock (_lock) { snapshot = new Dictionary<int, string>(_persistentVessels); }
                 _registryStore.MarkDirty(snapshot);
+            }
+        }
+
+        /// <summary>
+        /// Look up a vessel name by MMSI from the persistent registry.
+        /// Returns null if the vessel is unknown or only stored as its MMSI string.
+        /// </summary>
+        public string? LookupName(int mmsi)
+        {
+            lock (_lock)
+            {
+                if (_persistentVessels.TryGetValue(mmsi, out var name) && name != mmsi.ToString())
+                    return name;
+                return null;
             }
         }
 
