@@ -48,10 +48,18 @@ namespace AisToN2K.TUI
         private string? _pendingPromptContext;
         private Action<string>? _pendingPromptCallback;
 
-        public TuiApp(AppConfig config, bool debugMode)
+        // Auto-start flags
+        private bool _autoStartWs = true;
+        private bool _autoStartTcp = true;
+        private bool _autoStartUdp = true;
+
+        public TuiApp(AppConfig config, bool debugMode, bool autoStartWs = true, bool autoStartTcp = true, bool autoStartUdp = true)
         {
             _config = config;
             _debugMode = debugMode;
+            _autoStartWs = autoStartWs;
+            _autoStartTcp = autoStartTcp;
+            _autoStartUdp = autoStartUdp;
         }
 
         public async Task RunAsync()
@@ -79,6 +87,9 @@ namespace AisToN2K.TUI
             AppendCommandOutput("Type / to see available commands, or /help for detailed help.");
             AppendCommandOutput("");
 
+            // Auto-start services after UI is ready
+            AutoStartServices();
+
             Application.Run(_top);
             Application.Shutdown();
 
@@ -99,6 +110,62 @@ namespace AisToN2K.TUI
             {
                 _trackingService.ProcessVesselData(data);
             };
+        }
+
+        private void AutoStartServices()
+        {
+            // Fire-and-forget auto-start on a background thread so the UI stays responsive
+            Task.Run(async () =>
+            {
+                if (_autoStartTcp && _config.Network.EnableTcp)
+                {
+                    var result = await _serviceManager!.StartTcpServerAsync();
+                    Application.MainLoop?.Invoke(() =>
+                    {
+                        AppendCommandOutput(result
+                            ? $"✅ TCP server auto-started on {_config.Network.Tcp.Host}:{_config.Network.Tcp.Port}"
+                            : "⚠️  TCP server failed to auto-start. Use /tcp start to retry.");
+                        RefreshStatusPanel();
+                    });
+                }
+
+                if (_autoStartUdp && _config.Network.EnableUdp)
+                {
+                    var result = await _serviceManager!.StartUdpServerAsync();
+                    Application.MainLoop?.Invoke(() =>
+                    {
+                        AppendCommandOutput(result
+                            ? $"✅ UDP server auto-started on {_config.Network.Udp.Host}:{_config.Network.Udp.Port}"
+                            : "⚠️  UDP server failed to auto-start. Use /udp start to retry.");
+                        RefreshStatusPanel();
+                    });
+                }
+
+                if (_autoStartWs)
+                {
+                    if (string.IsNullOrEmpty(_config.ApiKey))
+                    {
+                        Application.MainLoop?.Invoke(() =>
+                        {
+                            AppendCommandOutput("⚠️  API key not configured — WebSocket not started.");
+                            AppendCommandOutput("  Set via: dotnet user-secrets set \"AisApi:ApiKey\" \"your-key\"");
+                            AppendCommandOutput("  Then use /connect to start manually.");
+                        });
+                    }
+                    else
+                    {
+                        Application.MainLoop?.Invoke(() => AppendCommandOutput("🔌 Connecting to WebSocket..."));
+                        var result = await _serviceManager!.StartWebSocketAsync();
+                        Application.MainLoop?.Invoke(() =>
+                        {
+                            AppendCommandOutput(result
+                                ? "✅ WebSocket connected."
+                                : "⚠️  WebSocket connection failed. Use /connect to retry.");
+                            RefreshStatusPanel();
+                        });
+                    }
+                }
+            });
         }
 
         private void BuildLayout()

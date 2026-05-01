@@ -28,6 +28,9 @@ namespace AisToN2K
             bool webMode = args.Contains("--web") || args.Contains("-w");
             bool headlessMode = args.Contains("--headless");
             bool externalAccess = args.Contains("--public") || args.Contains("--external");
+            bool noWs = args.Contains("--no-ws");
+            bool noTcp = args.Contains("--no-tcp");
+            bool noUdp = args.Contains("--no-udp");
             
             if (webMode)
             {
@@ -43,7 +46,7 @@ namespace AisToN2K
             }
             else
             {
-                await RunTuiModeAsync(args);
+                await RunTuiModeAsync(args, autoStartWs: !noWs, autoStartTcp: !noTcp, autoStartUdp: !noUdp);
             }
         }
         
@@ -59,6 +62,9 @@ namespace AisToN2K
             Console.WriteLine("  -d, --debug       Enable debug mode (shows all received and broadcast messages)");
             Console.WriteLine("  -h, --help        Show this help message");
             Console.WriteLine("  --headless        Run in headless console mode (no TUI, log streamed to stdout)");
+            Console.WriteLine("  --no-ws           Don't auto-start WebSocket connection");
+            Console.WriteLine("  --no-tcp          Don't auto-start TCP server");
+            Console.WriteLine("  --no-udp          Don't auto-start UDP server");
             Console.WriteLine("  --public, --external  Bind web UI to 0.0.0.0 for external subnet access (use with --web)");
             Console.WriteLine();
             Console.WriteLine("TUI mode (default):");
@@ -85,7 +91,7 @@ namespace AisToN2K
             Console.WriteLine();
         }
 
-        private static async Task RunTuiModeAsync(string[] args)
+        private static async Task RunTuiModeAsync(string[] args, bool autoStartWs = true, bool autoStartTcp = true, bool autoStartUdp = true)
         {
             try
             {
@@ -98,7 +104,7 @@ namespace AisToN2K
                     return;
                 }
 
-                var tuiApp = new TuiApp(config, _debugMode);
+                var tuiApp = new TuiApp(config, _debugMode, autoStartWs, autoStartTcp, autoStartUdp);
                 await tuiApp.RunAsync();
             }
             catch (Exception ex)
