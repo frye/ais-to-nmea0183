@@ -539,12 +539,16 @@ namespace AisToN2K
                     if (body == null || string.IsNullOrWhiteSpace(body.Units))
                         return Results.Json(new { success = false, message = "Missing 'units' field" });
 
-                    _trackingService!.Units = body.Units.ToLowerInvariant() switch
+                    var unitsValue = body.Units.ToLowerInvariant() switch
                     {
-                        "metric" => DisplayUnits.Metric,
-                        "nautical" or "knots" => DisplayUnits.Nautical,
-                        _ => _trackingService.Units
+                        "metric" => (DisplayUnits?)DisplayUnits.Metric,
+                        "nautical" or "knots" => (DisplayUnits?)DisplayUnits.Nautical,
+                        _ => null
                     };
+                    if (unitsValue == null)
+                        return Results.Json(new { success = false, message = $"Unsupported units '{body.Units}'. Valid values: metric, nautical, knots" });
+
+                    _trackingService!.Units = unitsValue.Value;
                     BroadcastSseEvent("settings-changed", new { units = _trackingService.Units.ToString().ToLowerInvariant() });
                     return Results.Json(new { success = true, units = _trackingService.Units.ToString().ToLowerInvariant() });
                 }
@@ -773,7 +777,8 @@ namespace AisToN2K
             if (_trackingService == null || !_trackingService.IsTracking)
                 return new { isTracking = false };
 
-            var lastPoint = _trackingService.GetTrackPoints().LastOrDefault();
+            var points = _trackingService.GetTrackPoints();
+            var lastPoint = points.LastOrDefault();
             return new
             {
                 isTracking = true,
@@ -783,7 +788,7 @@ namespace AisToN2K
                 distance = _trackingService.FormatDistance(),
                 currentSpeed = _trackingService.FormatCurrentSpeed(),
                 averageSpeed = _trackingService.FormatAverageSpeed(),
-                trackPoints = _trackingService.GetTrackPoints().Count,
+                trackPoints = points.Count,
                 startTime = _trackingService.TrackingStartTime?.ToString("o"),
                 lastPosition = lastPoint != null ? new
                 {

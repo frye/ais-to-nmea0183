@@ -266,6 +266,12 @@ let pollInterval = null;
 let targetsSortField = 'lastHeard';
 let targetsSortDesc = true;
 
+// ===== Utilities =====
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ===== Init =====
 applyUnitsToggle();
 applyUpdateToggle();
@@ -566,15 +572,35 @@ async function loadAlerts() {
         const list = document.getElementById('alertList');
         const noAlerts = document.getElementById('noAlerts');
         if (!data.alerts || data.alerts.length === 0) {
-            list.innerHTML = '<li class="targets-empty" id="noAlerts">No alerts configured</li>';
+            list.innerHTML = '';
+            const li = document.createElement('li');
+            li.className = 'targets-empty';
+            li.id = 'noAlerts';
+            li.textContent = 'No alerts configured';
+            list.appendChild(li);
             return;
         }
-        list.innerHTML = data.alerts.map(a => `
-            <li class="alert-item">
-                <div><div class="alert-info">🔔 ${a.name || 'Unknown'}</div><div class="alert-mmsi">MMSI: ${a.mmsi}</div></div>
-                <button class="btn btn-danger btn-sm" onclick="removeAlert(${a.mmsi})">Remove</button>
-            </li>
-        `).join('');
+        list.innerHTML = '';
+        data.alerts.forEach(a => {
+            const li = document.createElement('li');
+            li.className = 'alert-item';
+            const infoDiv = document.createElement('div');
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'alert-info';
+            nameDiv.textContent = `🔔 ${a.name || 'Unknown'}`;
+            const mmsiDiv = document.createElement('div');
+            mmsiDiv.className = 'alert-mmsi';
+            mmsiDiv.textContent = `MMSI: ${a.mmsi}`;
+            infoDiv.appendChild(nameDiv);
+            infoDiv.appendChild(mmsiDiv);
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-danger btn-sm';
+            btn.textContent = 'Remove';
+            btn.addEventListener('click', () => removeAlert(a.mmsi));
+            li.appendChild(infoDiv);
+            li.appendChild(btn);
+            list.appendChild(li);
+        });
     } catch {}
 }
 
@@ -599,28 +625,52 @@ function sortTargets(field) {
 
 function renderTargets() {
     const tbody = document.getElementById('targetsBody');
+    tbody.innerHTML = '';
     if (targetsData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="targets-empty">No vessels heard yet</td></tr>';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4;
+        td.className = 'targets-empty';
+        td.textContent = 'No vessels heard yet';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
         return;
     }
     const sorted = [...targetsData].sort((a, b) => {
         let va = a[targetsSortField], vb = b[targetsSortField];
         if (targetsSortField === 'lastHeard') { va = new Date(va); vb = new Date(vb); }
         if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
-        return targetsSortDesc ? (va > vb ? -1 : 1) : (va < vb ? -1 : 1);
+        if (va < vb) return targetsSortDesc ? 1 : -1;
+        if (va > vb) return targetsSortDesc ? -1 : 1;
+        return 0;
     });
-    tbody.innerHTML = sorted.map(t => {
-        const ago = timeAgo(new Date(t.lastHeard));
-        return `<tr>
-            <td>${t.mmsi}</td>
-            <td>${t.name}</td>
-            <td title="${new Date(t.lastHeard).toLocaleString()}">${ago}</td>
-            <td class="actions">
-                <button class="btn btn-primary btn-sm" onclick="quickTrack(${t.mmsi}, '${(t.name||'').replace(/'/g,"\\'")}')">Track</button>
-                <button class="btn btn-warning btn-sm" onclick="quickAlert(${t.mmsi})">Alert</button>
-            </td>
-        </tr>`;
-    }).join('');
+    sorted.forEach(t => {
+        const tr = document.createElement('tr');
+        const tdMmsi = document.createElement('td');
+        tdMmsi.textContent = t.mmsi;
+        const tdName = document.createElement('td');
+        tdName.textContent = t.name || '';
+        const tdTime = document.createElement('td');
+        tdTime.title = new Date(t.lastHeard).toLocaleString();
+        tdTime.textContent = timeAgo(new Date(t.lastHeard));
+        const tdActions = document.createElement('td');
+        tdActions.className = 'actions';
+        const trackBtn = document.createElement('button');
+        trackBtn.className = 'btn btn-primary btn-sm';
+        trackBtn.textContent = 'Track';
+        trackBtn.addEventListener('click', () => quickTrack(t.mmsi, t.name));
+        const alertBtn = document.createElement('button');
+        alertBtn.className = 'btn btn-warning btn-sm';
+        alertBtn.textContent = 'Alert';
+        alertBtn.addEventListener('click', () => quickAlert(t.mmsi));
+        tdActions.appendChild(trackBtn);
+        tdActions.appendChild(alertBtn);
+        tr.appendChild(tdMmsi);
+        tr.appendChild(tdName);
+        tr.appendChild(tdTime);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
 }
 
 function quickTrack(mmsi, name) {
