@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.Collections.Concurrent;
+using System.Threading.Channels;
 
 namespace AisToN2K
 {
@@ -15,6 +17,11 @@ namespace AisToN2K
         private static AppConfig? _config;
         private static bool _debugMode = false;
         private static string? _logPathOverride = null;
+
+        // Web mode: tracking, alerts, and SSE infrastructure
+        private static VesselTrackingService? _trackingService;
+        private static AlertService? _alertService;
+        private static readonly ConcurrentDictionary<string, Channel<string>> _sseClients = new();
         
         static async Task Main(string[] args)
         {
@@ -197,6 +204,34 @@ namespace AisToN2K
             _serviceManager = new ServiceManager(_config, _debugMode, _logPathOverride);
             await _serviceManager.InitializeAsync();
             
+            // Initialize tracking and alert services for web mode
+            var registryStore = new VesselRegistryStore();
+            var trackingStore = new TrackingStore();
+            _trackingService = new VesselTrackingService(registryStore, trackingStore);
+            var alertStore = new AlertStore();
+            _alertService = new AlertService(alertStore);
+
+            // Wire vessel data from ServiceManager into tracking + alerts (same pattern as TUI)
+            _serviceManager.VesselDataForTracking += (sender, data) =>
+            {
+                _trackingService.ProcessVesselData(data);
+                if (!string.IsNullOrWhiteSpace(data.VesselName))
+                    _alertService.UpdateAlertName(data.Mmsi, data.VesselName);
+                bool fired = _alertService.CheckAndFire(data.Mmsi, data.VesselName);
+                if (fired)
+                    BroadcastSseEvent("alert-fired", new { mmsi = data.Mmsi, name = data.VesselName ?? data.Mmsi.ToString() });
+            };
+
+            // Wire name lookup so broadcast messages can resolve vessel names
+            _serviceManager.VesselNameLookup = mmsi => _trackingService.LookupName(mmsi);
+
+            // Wire tracking updates to SSE
+            _trackingService.TrackingUpdated += (s, e) => BroadcastSseEvent("tracking-updated", BuildTrackingStatus());
+            _trackingService.PendingTrackingActivated += (s, e) => BroadcastSseEvent("tracking-activated", new { mmsi = e.Mmsi, name = e.Name });
+
+            // Wire status changes to SSE
+            _serviceManager.StatusChanged += (s, msg) => BroadcastSseEvent("status-changed", new { message = msg });
+            
             // Add services to the container
             builder.Services.AddSingleton(_serviceManager);
             
@@ -207,6 +242,9 @@ namespace AisToN2K
             bool servicesDisposed = false;
             lifetime.ApplicationStopping.Register(() =>
             {
+                // Flush tracking/alert stores
+                try { _trackingService?.FlushRegistry(); } catch { }
+
                 if (!servicesDisposed && _serviceManager != null)
                 {
                     try
@@ -232,6 +270,14 @@ namespace AisToN2K
             app.MapGet("/api/status", () =>
             {
                 var stats = _serviceManager.Statistics;
+                var typeCounts = stats?.GetMessageTypeCounts() ?? new Dictionary<int, int>();
+                var messageTypes = typeCounts.OrderBy(kv => kv.Key).Select(kv => new
+                {
+                    type = kv.Key,
+                    name = StatisticsService.GetMessageTypeDisplayName(kv.Key),
+                    count = kv.Value
+                });
+
                 return Results.Json(new
                 {
                     webSocket = new
@@ -256,7 +302,8 @@ namespace AisToN2K
                         totalReceived = stats?.TotalMessagesReceived ?? 0,
                         totalConverted = stats?.TotalMessagesConverted ?? 0,
                         totalBroadcast = stats?.TotalMessagesBroadcast ?? 0,
-                        errors = stats?.TotalErrors ?? 0
+                        errors = stats?.TotalErrors ?? 0,
+                        messageTypes = messageTypes
                     },
                     config = new
                     {
@@ -331,6 +378,217 @@ namespace AisToN2K
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
                     return Results.Json(new { success = false, message = "Unexpected error: " + ex.Message });
+                }
+            });
+
+            // --- Tracking endpoints ---
+
+            app.MapGet("/api/tracking/status", () =>
+            {
+                return Results.Json(BuildTrackingStatus());
+            });
+
+            app.MapPost("/api/tracking/start", async (HttpContext context) =>
+            {
+                try
+                {
+                    var body = await context.Request.ReadFromJsonAsync<TrackingRequest>();
+                    if (body == null || string.IsNullOrWhiteSpace(body.Query))
+                        return Results.Json(new { success = false, message = "Missing 'query' field (vessel name or MMSI)" });
+
+                    var query = body.Query.Trim();
+
+                    // Try MMSI first
+                    if (int.TryParse(query, out var mmsi))
+                    {
+                        var name = _trackingService!.LookupName(mmsi);
+                        if (name != null)
+                            _trackingService.StartTracking(mmsi, name);
+                        else
+                            _trackingService.StartPendingTracking(mmsi);
+                        return Results.Json(new { success = true, message = $"Tracking MMSI {mmsi}", mmsi, pending = name == null });
+                    }
+
+                    // Search by name
+                    var matches = _trackingService!.FindVessels(query);
+                    if (matches.Count == 0)
+                        return Results.Json(new { success = false, message = $"No vessels found matching '{query}'" });
+                    if (matches.Count > 1)
+                        return Results.Json(new { success = false, message = $"Multiple matches ({matches.Count}). Be more specific.", matches = matches.Select(m => new { m.Mmsi, m.Name }) });
+
+                    var match = matches[0];
+                    _trackingService.StartTracking(match.Mmsi, match.Name);
+                    return Results.Json(new { success = true, message = $"Tracking {match.Name}", mmsi = match.Mmsi, pending = false });
+                }
+                catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
+                {
+                    return Results.Json(new { success = false, message = ex.Message });
+                }
+            });
+
+            app.MapPost("/api/tracking/stop", () =>
+            {
+                _trackingService!.StopTracking();
+                return Results.Json(new { success = true, message = "Tracking stopped" });
+            });
+
+            app.MapGet("/api/tracking/targets", () =>
+            {
+                var targets = _trackingService!.GetAllTargets()
+                    .Select(t => new { t.Mmsi, t.Name, lastHeard = t.LastHeard.ToString("o") });
+                return Results.Json(new { targets, count = targets.Count() });
+            });
+
+            // --- Alert endpoints ---
+
+            app.MapGet("/api/alerts", () =>
+            {
+                var alerts = _alertService!.GetAlerts()
+                    .Select(a => new { a.Mmsi, a.Name, createdAt = a.CreatedAt.ToString("o") });
+                return Results.Json(new { alerts, count = alerts.Count() });
+            });
+
+            app.MapPost("/api/alerts", async (HttpContext context) =>
+            {
+                try
+                {
+                    var body = await context.Request.ReadFromJsonAsync<AlertRequest>();
+                    if (body == null || string.IsNullOrWhiteSpace(body.Query))
+                        return Results.Json(new { success = false, message = "Missing 'query' field" });
+
+                    var query = body.Query.Trim();
+
+                    if (int.TryParse(query, out var mmsi))
+                    {
+                        var name = _trackingService!.LookupName(mmsi);
+                        var added = _alertService!.AddAlert(mmsi, name);
+                        return Results.Json(new { success = added, message = added ? $"Alert added for MMSI {mmsi}" : "Already alerted", mmsi });
+                    }
+
+                    var matches = _trackingService!.FindVessels(query);
+                    if (matches.Count == 0)
+                        return Results.Json(new { success = false, message = $"No vessels found matching '{query}'" });
+                    if (matches.Count > 1)
+                        return Results.Json(new { success = false, message = $"Multiple matches ({matches.Count}). Be more specific.", matches = matches.Select(m => new { m.Mmsi, m.Name }) });
+
+                    var match = matches[0];
+                    var result = _alertService!.AddAlert(match.Mmsi, match.Name);
+                    return Results.Json(new { success = result, message = result ? $"Alert added for {match.Name}" : "Already alerted", mmsi = match.Mmsi });
+                }
+                catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
+                {
+                    return Results.Json(new { success = false, message = ex.Message });
+                }
+            });
+
+            app.MapDelete("/api/alerts/{mmsi:int}", (int mmsi) =>
+            {
+                var removed = _alertService!.RemoveAlert(mmsi);
+                return Results.Json(new { success = removed, message = removed ? "Alert removed" : "Alert not found" });
+            });
+
+            app.MapDelete("/api/alerts", () =>
+            {
+                _alertService!.ClearAlerts();
+                return Results.Json(new { success = true, message = "All alerts cleared" });
+            });
+
+            // --- Export endpoints ---
+
+            app.MapGet("/api/export/gpx", () =>
+            {
+                if (!_trackingService!.IsTracking || _trackingService.TrackedMmsi == null)
+                    return Results.Json(new { success = false, message = "No active tracking" });
+
+                var points = _trackingService.GetTrackPoints();
+                if (points.Count == 0)
+                    return Results.Json(new { success = false, message = "No track points recorded yet" });
+
+                var gpx = GpxExporter.Export(points, _trackingService.TrackedVesselName ?? "Unknown", _trackingService.TrackedMmsi.Value);
+                return Results.Text(gpx, "application/gpx+xml");
+            });
+
+            app.MapGet("/api/export/kml", () =>
+            {
+                if (!_trackingService!.IsTracking || _trackingService.TrackedMmsi == null)
+                    return Results.Json(new { success = false, message = "No active tracking" });
+
+                var points = _trackingService.GetTrackPoints();
+                if (points.Count == 0)
+                    return Results.Json(new { success = false, message = "No track points recorded yet" });
+
+                var kml = KmlExporter.Export(points, _trackingService.TrackedVesselName ?? "Unknown", _trackingService.TrackedMmsi.Value);
+                return Results.Text(kml, "application/vnd.google-earth.kml+xml");
+            });
+
+            // --- Settings endpoints ---
+
+            app.MapGet("/api/settings", () =>
+            {
+                return Results.Json(new
+                {
+                    units = _trackingService!.Units.ToString().ToLowerInvariant()
+                });
+            });
+
+            app.MapPost("/api/settings/units", async (HttpContext context) =>
+            {
+                try
+                {
+                    var body = await context.Request.ReadFromJsonAsync<UnitsRequest>();
+                    if (body == null || string.IsNullOrWhiteSpace(body.Units))
+                        return Results.Json(new { success = false, message = "Missing 'units' field" });
+
+                    var unitsValue = body.Units.ToLowerInvariant() switch
+                    {
+                        "metric" => (DisplayUnits?)DisplayUnits.Metric,
+                        "nautical" or "knots" => (DisplayUnits?)DisplayUnits.Nautical,
+                        _ => null
+                    };
+                    if (unitsValue == null)
+                        return Results.Json(new { success = false, message = $"Unsupported units '{body.Units}'. Valid values: metric, nautical, knots" });
+
+                    _trackingService!.Units = unitsValue.Value;
+                    BroadcastSseEvent("settings-changed", new { units = _trackingService.Units.ToString().ToLowerInvariant() });
+                    return Results.Json(new { success = true, units = _trackingService.Units.ToString().ToLowerInvariant() });
+                }
+                catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
+                {
+                    return Results.Json(new { success = false, message = ex.Message });
+                }
+            });
+
+            // --- SSE endpoint ---
+
+            app.MapGet("/api/events", async (HttpContext context) =>
+            {
+                context.Response.ContentType = "text/event-stream";
+                context.Response.Headers["Cache-Control"] = "no-cache";
+                context.Response.Headers["Connection"] = "keep-alive";
+
+                var clientId = Guid.NewGuid().ToString();
+                var channel = Channel.CreateBounded<string>(new BoundedChannelOptions(100)
+                {
+                    FullMode = BoundedChannelFullMode.DropOldest
+                });
+                _sseClients[clientId] = channel;
+
+                try
+                {
+                    // Send initial state
+                    await context.Response.WriteAsync($"event: connected\ndata: {{\"clientId\":\"{clientId}\"}}\n\n", context.RequestAborted);
+                    await context.Response.Body.FlushAsync(context.RequestAborted);
+
+                    await foreach (var msg in channel.Reader.ReadAllAsync(context.RequestAborted))
+                    {
+                        await context.Response.WriteAsync(msg, context.RequestAborted);
+                        await context.Response.Body.FlushAsync(context.RequestAborted);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                finally
+                {
+                    _sseClients.TryRemove(clientId, out _);
                 }
             });
             
@@ -499,5 +757,52 @@ namespace AisToN2K
             }
             Environment.Exit(0);
         }
+
+        // --- SSE helpers ---
+
+        private static void BroadcastSseEvent(string eventType, object data)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
+            var message = $"event: {eventType}\ndata: {json}\n\n";
+            foreach (var kvp in _sseClients)
+            {
+                kvp.Value.Writer.TryWrite(message);
+            }
+        }
+
+        // --- Tracking status builder ---
+
+        private static object BuildTrackingStatus()
+        {
+            if (_trackingService == null || !_trackingService.IsTracking)
+                return new { isTracking = false };
+
+            var points = _trackingService.GetTrackPoints();
+            var lastPoint = points.LastOrDefault();
+            return new
+            {
+                isTracking = true,
+                isPending = _trackingService.IsPendingTracking,
+                mmsi = _trackingService.TrackedMmsi,
+                vesselName = _trackingService.TrackedVesselName,
+                distance = _trackingService.FormatDistance(),
+                currentSpeed = _trackingService.FormatCurrentSpeed(),
+                averageSpeed = _trackingService.FormatAverageSpeed(),
+                trackPoints = points.Count,
+                startTime = _trackingService.TrackingStartTime?.ToString("o"),
+                lastPosition = lastPoint != null ? new
+                {
+                    latitude = lastPoint.Latitude,
+                    longitude = lastPoint.Longitude,
+                    timestamp = lastPoint.Timestamp.ToString("o")
+                } : null
+            };
+        }
+
+        // --- Request DTOs ---
+
+        private record TrackingRequest(string? Query);
+        private record AlertRequest(string? Query);
+        private record UnitsRequest(string? Units);
     }
 }
