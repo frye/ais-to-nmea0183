@@ -5,290 +5,152 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIS to NMEA 0183 Converter</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: #333;
-            padding: 20px;
-            min-height: 100vh;
+            color: #333; padding: 20px; min-height: 100vh;
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-
-        h1 {
-            color: #1e3c72;
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-
-        .subtitle {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .card h2 {
-            font-size: 18px;
-            margin-bottom: 15px;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-connected {
-            background-color: #4caf50;
-            box-shadow: 0 0 8px #4caf50;
-        }
-
-        .status-disconnected {
-            background-color: #f44336;
-        }
-
-        .status-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
-
-        .status-label {
-            font-weight: 600;
-            color: #666;
-        }
-
-        .status-value {
-            font-weight: 500;
-            color: #333;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-right: 10px;
-            margin-top: 10px;
-        }
-
-        .btn-primary {
-            background-color: #4caf50;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background-color: #45a049;
-        }
-
-        .btn-danger {
-            background-color: #f44336;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: #da190b;
-        }
-
-        .btn-secondary {
-            background-color: #2196F3;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background-color: #0b7dda;
-        }
-
-        .btn:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #666;
-            font-size: 14px;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #2196F3;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-
-        .stat-item {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 4px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #1e3c72;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-        }
-
-        .log-container {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 15px;
-            border-radius: 4px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-        }
-
-        .log-entry {
-            padding: 2px 0;
-            border-bottom: 1px solid #333;
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        .config-info {
-            background: #e3f2fd;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 10px;
-            font-size: 13px;
-        }
-
-        .config-info strong {
-            color: #1e3c72;
-        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { color: #1e3c72; font-size: 24px; margin-bottom: 5px; }
+        .subtitle { color: #666; font-size: 14px; }
+        .header-controls { display: flex; gap: 12px; align-items: center; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card h2 { font-size: 18px; margin-bottom: 15px; color: #1e3c72; display: flex; align-items: center; gap: 8px; }
+        .status-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+        .status-connected { background-color: #4caf50; box-shadow: 0 0 8px #4caf50; }
+        .status-disconnected { background-color: #f44336; }
+        .status-info { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f5f5f5; border-radius: 4px; margin-bottom: 10px; }
+        .status-label { font-weight: 600; color: #666; }
+        .status-value { font-weight: 500; color: #333; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-right: 8px; margin-top: 8px; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; margin-top: 0; }
+        .btn-primary { background-color: #4caf50; color: white; }
+        .btn-primary:hover { background-color: #45a049; }
+        .btn-danger { background-color: #f44336; color: white; }
+        .btn-danger:hover { background-color: #da190b; }
+        .btn-secondary { background-color: #2196F3; color: white; }
+        .btn-secondary:hover { background-color: #0b7dda; }
+        .btn-warning { background-color: #ff9800; color: white; }
+        .btn-warning:hover { background-color: #e68a00; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #666; font-size: 14px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #2196F3; }
+        .inline-form { display: flex; gap: 8px; align-items: flex-end; }
+        .inline-form input { flex: 1; padding: 10px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .stats-grid-wide { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .stat-item { background: #f5f5f5; padding: 15px; border-radius: 4px; text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #1e3c72; margin-bottom: 5px; }
+        .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
+        .msg-type-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .msg-type-badge { display: inline-flex; align-items: center; gap: 6px; background: #e8eaf6; padding: 6px 12px; border-radius: 16px; font-size: 12px; }
+        .msg-type-badge .count { font-weight: 700; color: #1e3c72; }
+        .msg-type-badge .label { color: #555; }
+        .log-container { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; }
+        .log-entry { padding: 2px 0; border-bottom: 1px solid #333; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry.alert-entry { color: #ff5252; font-weight: bold; }
+        .config-info { background: #e3f2fd; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px; }
+        .config-info strong { color: #1e3c72; }
+        /* Tracking panel */
+        .tracking-card { border-left: 4px solid #2196F3; }
+        .tracking-card.tracking-active { border-left-color: #4caf50; }
+        .tracking-card.tracking-pending { border-left-color: #ff9800; }
+        .tracking-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+        .tracking-stat { background: #f0f7ff; padding: 10px; border-radius: 4px; text-align: center; }
+        .tracking-stat .val { font-size: 18px; font-weight: bold; color: #1e3c72; }
+        .tracking-stat .lbl { font-size: 11px; color: #666; text-transform: uppercase; }
+        /* Targets table */
+        .targets-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .targets-table th { background: #1e3c72; color: white; padding: 10px 12px; text-align: left; cursor: pointer; user-select: none; }
+        .targets-table th:hover { background: #2a5298; }
+        .targets-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .targets-table tr:hover { background: #f0f7ff; }
+        .targets-table .actions { white-space: nowrap; }
+        .targets-empty { text-align: center; padding: 30px; color: #999; }
+        /* Alerts */
+        .alert-list { list-style: none; }
+        .alert-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #fff3e0; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #ff9800; }
+        .alert-item .alert-info { font-size: 14px; }
+        .alert-item .alert-mmsi { color: #666; font-size: 12px; }
+        /* Toast notifications */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { padding: 14px 20px; border-radius: 8px; color: white; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: slideIn 0.3s ease, fadeOut 0.5s ease 4.5s; opacity: 1; max-width: 350px; }
+        .toast-alert { background: linear-gradient(135deg, #ff5252, #d32f2f); }
+        .toast-info { background: linear-gradient(135deg, #2196F3, #1565c0); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; } }
+        /* Settings */
+        .settings-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+        .setting-group { display: flex; align-items: center; gap: 8px; }
+        .setting-group label { font-weight: 600; color: #666; font-size: 14px; white-space: nowrap; }
+        .toggle-group { display: inline-flex; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
+        .toggle-group button { padding: 6px 14px; border: none; background: white; cursor: pointer; font-size: 13px; font-weight: 600; color: #666; transition: all 0.2s; }
+        .toggle-group button.active { background: #1e3c72; color: white; }
+        .sse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+        .sse-dot.connected { background: #4caf50; }
+        .sse-dot.disconnected { background: #f44336; }
     </style>
 </head>
 <body>
+    <div class="toast-container" id="toastContainer"></div>
+
     <div class="container">
         <header>
-            <h1>🚢 AIS to NMEA 0183 Converter</h1>
-            <p class="subtitle">Real-time maritime data streaming and conversion</p>
+            <div>
+                <h1>🚢 AIS to NMEA 0183 Converter</h1>
+                <p class="subtitle">Real-time maritime data streaming and conversion</p>
+            </div>
+            <div class="header-controls">
+                <span id="sseStatus"><span class="sse-dot disconnected" id="sseDot"></span><span id="sseLabel">Polling</span></span>
+            </div>
         </header>
 
+        <!-- Settings bar -->
+        <div class="card" style="padding: 14px 20px;">
+            <div class="settings-row">
+                <div class="setting-group">
+                    <label>Units:</label>
+                    <div class="toggle-group" id="unitsToggle">
+                        <button class="active" onclick="setUnits('nautical')">Knots / NM</button>
+                        <button onclick="setUnits('metric')">km/h / km</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Updates:</label>
+                    <div class="toggle-group" id="updateToggle">
+                        <button class="active" onclick="setUpdateMode('sse')">Real-time (SSE)</button>
+                        <button onclick="setUpdateMode('polling')">Polling</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service controls grid -->
         <div class="grid">
-            <!-- WebSocket Control -->
             <div class="card">
-                <h2>
-                    <span id="wsIndicator" class="status-indicator status-disconnected"></span>
-                    WebSocket Connection
-                </h2>
-                <div class="status-info">
-                    <span class="status-label">Status:</span>
-                    <span id="wsStatus" class="status-value">Disconnected</span>
-                </div>
-                <div class="status-info">
-                    <span class="status-label">URL:</span>
-                    <span id="wsUrl" class="status-value">-</span>
-                </div>
+                <h2><span id="wsIndicator" class="status-indicator status-disconnected"></span>WebSocket Connection</h2>
+                <div class="status-info"><span class="status-label">Status:</span><span id="wsStatus" class="status-value">Disconnected</span></div>
+                <div class="status-info"><span class="status-label">URL:</span><span id="wsUrl" class="status-value">-</span></div>
                 <button id="wsStartBtn" class="btn btn-primary" onclick="startWebSocket()">Connect</button>
                 <button id="wsStopBtn" class="btn btn-danger" onclick="stopWebSocket()" disabled>Disconnect</button>
             </div>
-
-            <!-- TCP Server Control -->
             <div class="card">
-                <h2>
-                    <span id="tcpIndicator" class="status-indicator status-disconnected"></span>
-                    TCP Server
-                </h2>
-                <div class="status-info">
-                    <span class="status-label">Status:</span>
-                    <span id="tcpStatus" class="status-value">Stopped</span>
-                </div>
-                <div class="status-info">
-                    <span class="status-label">Address:</span>
-                    <span id="tcpAddress" class="status-value">-</span>
-                </div>
+                <h2><span id="tcpIndicator" class="status-indicator status-disconnected"></span>TCP Server</h2>
+                <div class="status-info"><span class="status-label">Status:</span><span id="tcpStatus" class="status-value">Stopped</span></div>
+                <div class="status-info"><span class="status-label">Address:</span><span id="tcpAddress" class="status-value">-</span></div>
                 <button id="tcpStartBtn" class="btn btn-primary" onclick="startTcp()">Start</button>
                 <button id="tcpStopBtn" class="btn btn-danger" onclick="stopTcp()" disabled>Stop</button>
             </div>
-
-            <!-- UDP Server Control -->
             <div class="card">
-                <h2>
-                    <span id="udpIndicator" class="status-indicator status-disconnected"></span>
-                    UDP Server
-                </h2>
-                <div class="status-info">
-                    <span class="status-label">Status:</span>
-                    <span id="udpStatus" class="status-value">Stopped</span>
-                </div>
-                <div class="status-info">
-                    <span class="status-label">Address:</span>
-                    <span id="udpAddress" class="status-value">-</span>
-                </div>
+                <h2><span id="udpIndicator" class="status-indicator status-disconnected"></span>UDP Server</h2>
+                <div class="status-info"><span class="status-label">Status:</span><span id="udpStatus" class="status-value">Stopped</span></div>
+                <div class="status-info"><span class="status-label">Address:</span><span id="udpAddress" class="status-value">-</span></div>
                 <button id="udpStartBtn" class="btn btn-primary" onclick="startUdp()">Start</button>
                 <button id="udpStopBtn" class="btn btn-danger" onclick="stopUdp()" disabled>Stop</button>
             </div>
@@ -298,22 +160,73 @@
         <div class="card">
             <h2>📊 Statistics</h2>
             <div class="stats-grid">
-                <div class="stat-item">
-                    <div id="messagesReceived" class="stat-value">0</div>
-                    <div class="stat-label">Messages Received</div>
+                <div class="stat-item"><div id="messagesReceived" class="stat-value">0</div><div class="stat-label">Messages Received</div></div>
+                <div class="stat-item"><div id="messagesConverted" class="stat-value">0</div><div class="stat-label">Messages Converted</div></div>
+                <div class="stat-item"><div id="messagesBroadcast" class="stat-value">0</div><div class="stat-label">Messages Broadcast</div></div>
+                <div class="stat-item"><div id="errors" class="stat-value">0</div><div class="stat-label">Errors</div></div>
+            </div>
+            <div id="messageTypesContainer" class="msg-type-grid"></div>
+        </div>
+
+        <!-- Vessel Tracking -->
+        <div id="trackingCard" class="card tracking-card">
+            <h2>📍 Vessel Tracking</h2>
+            <div class="inline-form">
+                <input type="text" id="trackingInput" placeholder="Enter vessel name or MMSI..." onkeydown="if(event.key==='Enter')startTracking()">
+                <button class="btn btn-primary btn-sm" onclick="startTracking()">Track</button>
+                <button class="btn btn-danger btn-sm" id="stopTrackBtn" onclick="stopTracking()" disabled>Stop</button>
+            </div>
+            <div id="trackingInfo" style="display:none; margin-top: 15px;">
+                <div class="status-info">
+                    <span class="status-label">Vessel:</span>
+                    <span id="trackVessel" class="status-value">-</span>
                 </div>
-                <div class="stat-item">
-                    <div id="messagesConverted" class="stat-value">0</div>
-                    <div class="stat-label">Messages Converted</div>
+                <div class="tracking-info-grid">
+                    <div class="tracking-stat"><div class="val" id="trackSpeed">-</div><div class="lbl">Speed</div></div>
+                    <div class="tracking-stat"><div class="val" id="trackAvgSpeed">-</div><div class="lbl">Avg Speed</div></div>
+                    <div class="tracking-stat"><div class="val" id="trackDistance">-</div><div class="lbl">Distance</div></div>
+                    <div class="tracking-stat"><div class="val" id="trackPoints">0</div><div class="lbl">Points</div></div>
+                    <div class="tracking-stat"><div class="val" id="trackPosition">-</div><div class="lbl">Last Position</div></div>
+                    <div class="tracking-stat"><div class="val" id="trackDuration">-</div><div class="lbl">Duration</div></div>
                 </div>
-                <div class="stat-item">
-                    <div id="messagesBroadcast" class="stat-value">0</div>
-                    <div class="stat-label">Messages Broadcast</div>
-                </div>
-                <div class="stat-item">
-                    <div id="errors" class="stat-value">0</div>
-                    <div class="stat-label">Errors</div>
-                </div>
+                <button class="btn btn-secondary btn-sm" onclick="exportTrack('gpx')">📥 GPX</button>
+                <button class="btn btn-secondary btn-sm" onclick="exportTrack('kml')">📥 KML</button>
+            </div>
+            <div id="trackingPending" style="display:none; margin-top: 12px;">
+                <div class="config-info">⏳ Waiting for vessel to transmit...</div>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="card">
+            <h2>🔔 Alerts</h2>
+            <div class="inline-form" style="margin-bottom: 12px;">
+                <input type="text" id="alertInput" placeholder="Add alert for vessel name or MMSI..." onkeydown="if(event.key==='Enter')addAlert()">
+                <button class="btn btn-warning btn-sm" onclick="addAlert()">Add Alert</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAlerts()">Clear All</button>
+            </div>
+            <ul id="alertList" class="alert-list">
+                <li class="targets-empty" id="noAlerts">No alerts configured</li>
+            </ul>
+        </div>
+
+        <!-- Targets (vessels heard) -->
+        <div class="card">
+            <h2>🚢 Vessels Heard <span id="targetsCount" style="font-size:13px; color:#666; font-weight:normal;"></span></h2>
+            <div style="overflow-x: auto;">
+                <table class="targets-table" id="targetsTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTargets('mmsi')">MMSI</th>
+                            <th onclick="sortTargets('name')">Name</th>
+                            <th onclick="sortTargets('lastHeard')">Last Heard</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="targetsBody">
+                        <tr><td colspan="4" class="targets-empty">No vessels heard yet</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -321,25 +234,15 @@
         <div class="card">
             <h2>🗺️ Bounding Box Configuration</h2>
             <div class="config-info">
-                <strong>Current Area:</strong> North: <span id="currentNorth">-</span>, South: <span id="currentSouth">-</span>, 
+                <strong>Current Area:</strong> North: <span id="currentNorth">-</span>, South: <span id="currentSouth">-</span>,
                 East: <span id="currentEast">-</span>, West: <span id="currentWest">-</span>
             </div>
-            <form id="configForm" onsubmit="updateConfig(event)">
-                <div class="form-group">
-                    <label for="north">North Latitude:</label>
-                    <input type="number" step="0.0001" id="north" name="north" required>
-                </div>
-                <div class="form-group">
-                    <label for="south">South Latitude:</label>
-                    <input type="number" step="0.0001" id="south" name="south" required>
-                </div>
-                <div class="form-group">
-                    <label for="east">East Longitude:</label>
-                    <input type="number" step="0.0001" id="east" name="east" required>
-                </div>
-                <div class="form-group">
-                    <label for="west">West Longitude:</label>
-                    <input type="number" step="0.0001" id="west" name="west" required>
+            <form id="configForm" onsubmit="updateConfig(event)" style="margin-top: 12px;">
+                <div class="grid" style="margin-bottom: 0;">
+                    <div class="form-group"><label for="north">North Latitude:</label><input type="number" step="0.0001" id="north" required></div>
+                    <div class="form-group"><label for="south">South Latitude:</label><input type="number" step="0.0001" id="south" required></div>
+                    <div class="form-group"><label for="east">East Longitude:</label><input type="number" step="0.0001" id="east" required></div>
+                    <div class="form-group"><label for="west">West Longitude:</label><input type="number" step="0.0001" id="west" required></div>
                 </div>
                 <button type="submit" class="btn btn-secondary">Update & Reconnect</button>
             </form>
@@ -354,171 +257,413 @@
         </div>
     </div>
 
-    <script>
-        // Auto-refresh status every 2 seconds
-        setInterval(updateStatus, 2000);
-        
-        // Initial load
+<script>
+// ===== State =====
+let currentUnits = localStorage.getItem('ais-units') || 'nautical';
+let updateMode = localStorage.getItem('ais-update-mode') || 'sse';
+let sseSource = null;
+let pollInterval = null;
+let targetsSortField = 'lastHeard';
+let targetsSortDesc = true;
+
+// ===== Init =====
+applyUnitsToggle();
+applyUpdateToggle();
+updateStatus();
+loadAlerts();
+loadTargets();
+loadTrackingStatus();
+initUpdateMode();
+
+// ===== SSE =====
+function initUpdateMode() {
+    if (updateMode === 'sse') connectSSE(); else startPolling();
+}
+
+function connectSSE() {
+    if (sseSource) sseSource.close();
+    stopPolling();
+    sseSource = new EventSource('/api/events');
+    sseSource.onopen = () => { setSseIndicator(true); };
+    sseSource.onerror = () => {
+        setSseIndicator(false);
+        // Fallback to polling on SSE failure
+        if (updateMode === 'sse') { startPolling(); }
+    };
+    sseSource.addEventListener('tracking-updated', (e) => {
+        const data = JSON.parse(e.data);
+        applyTrackingData(data);
+    });
+    sseSource.addEventListener('tracking-activated', (e) => {
+        const data = JSON.parse(e.data);
+        addLog(`🎯 Tracking activated: ${data.name} [${data.mmsi}]`);
+        loadTrackingStatus();
+    });
+    sseSource.addEventListener('alert-fired', (e) => {
+        const data = JSON.parse(e.data);
+        showToast(`🔔 ALERT: ${data.name} [${data.mmsi}] detected!`, 'alert');
+        addLog(`🔔 ALERT: ${data.name} [${data.mmsi}]`, true);
+    });
+    sseSource.addEventListener('status-changed', () => { updateStatus(); });
+    sseSource.addEventListener('settings-changed', (e) => {
+        const data = JSON.parse(e.data);
+        currentUnits = data.units;
+        localStorage.setItem('ais-units', currentUnits);
+        applyUnitsToggle();
+    });
+    // Still poll at a slower rate for data SSE doesn't push (stats, targets, config)
+    startPolling(5000);
+}
+
+function startPolling(interval) {
+    stopPolling();
+    pollInterval = setInterval(updateStatus, interval || 2000);
+}
+function stopPolling() {
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+function setSseIndicator(connected) {
+    document.getElementById('sseDot').className = 'sse-dot ' + (connected ? 'connected' : 'disconnected');
+    document.getElementById('sseLabel').textContent = connected ? 'SSE Connected' : (updateMode === 'sse' ? 'SSE Reconnecting...' : 'Polling');
+}
+
+function setUpdateMode(mode) {
+    updateMode = mode;
+    localStorage.setItem('ais-update-mode', mode);
+    applyUpdateToggle();
+    if (mode === 'sse') { connectSSE(); } else { if (sseSource) sseSource.close(); sseSource = null; setSseIndicator(false); document.getElementById('sseLabel').textContent = 'Polling'; startPolling(2000); }
+}
+
+function applyUpdateToggle() {
+    const btns = document.querySelectorAll('#updateToggle button');
+    btns[0].className = updateMode === 'sse' ? 'active' : '';
+    btns[1].className = updateMode === 'polling' ? 'active' : '';
+}
+
+// ===== Status polling =====
+async function updateStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        updateServiceStatus('ws', data.webSocket.isConnected, data.webSocket.url);
+        updateServiceStatus('tcp', data.tcp.isRunning, data.tcp.isRunning ? `${data.tcp.host}:${data.tcp.port}` : '-');
+        updateServiceStatus('udp', data.udp.isRunning, data.udp.isRunning ? `${data.udp.host}:${data.udp.port}` : '-');
+        document.getElementById('messagesReceived').textContent = data.statistics.totalReceived.toLocaleString();
+        document.getElementById('messagesConverted').textContent = data.statistics.totalConverted.toLocaleString();
+        document.getElementById('messagesBroadcast').textContent = data.statistics.totalBroadcast.toLocaleString();
+        document.getElementById('errors').textContent = data.statistics.errors.toLocaleString();
+        // Message type breakdown
+        renderMessageTypes(data.statistics.messageTypes || []);
+        // Config
+        document.getElementById('currentNorth').textContent = data.config.north;
+        document.getElementById('currentSouth').textContent = data.config.south;
+        document.getElementById('currentEast').textContent = data.config.east;
+        document.getElementById('currentWest').textContent = data.config.west;
+        if (!document.getElementById('north').matches(':focus')) document.getElementById('north').value = data.config.north;
+        if (!document.getElementById('south').matches(':focus')) document.getElementById('south').value = data.config.south;
+        if (!document.getElementById('east').matches(':focus')) document.getElementById('east').value = data.config.east;
+        if (!document.getElementById('west').matches(':focus')) document.getElementById('west').value = data.config.west;
+        // Refresh targets on poll
+        loadTargets();
+    } catch (error) {
+        console.error('Failed to update status:', error);
+    }
+}
+
+function renderMessageTypes(types) {
+    const container = document.getElementById('messageTypesContainer');
+    if (!types || types.length === 0) { container.innerHTML = ''; return; }
+    container.innerHTML = types.map(t =>
+        `<div class="msg-type-badge"><span class="count">${t.count.toLocaleString()}</span><span class="label">Type ${t.type}: ${t.name}</span></div>`
+    ).join('');
+}
+
+function updateServiceStatus(service, isRunning, address) {
+    const indicator = document.getElementById(`${service}Indicator`);
+    const status = document.getElementById(`${service}Status`);
+    const addressEl = document.getElementById(`${service}Address`) || document.getElementById(`${service}Url`);
+    const startBtn = document.getElementById(`${service}StartBtn`);
+    const stopBtn = document.getElementById(`${service}StopBtn`);
+    indicator.className = 'status-indicator ' + (isRunning ? 'status-connected' : 'status-disconnected');
+    status.textContent = isRunning ? (service === 'ws' ? 'Connected' : 'Running') : (service === 'ws' ? 'Disconnected' : 'Stopped');
+    startBtn.disabled = isRunning;
+    stopBtn.disabled = !isRunning;
+    if (addressEl) addressEl.textContent = address;
+}
+
+// ===== Service controls =====
+async function startWebSocket() { await controlService('/api/websocket/start', 'WebSocket connected'); }
+async function stopWebSocket() { await controlService('/api/websocket/stop', 'WebSocket disconnected'); }
+async function startTcp() { await controlService('/api/tcp/start', 'TCP server started'); }
+async function stopTcp() { await controlService('/api/tcp/stop', 'TCP server stopped'); }
+async function startUdp() { await controlService('/api/udp/start', 'UDP server started'); }
+async function stopUdp() { await controlService('/api/udp/stop', 'UDP server stopped'); }
+
+async function controlService(endpoint, successMessage) {
+    try {
+        const response = await fetch(endpoint, { method: 'POST' });
+        const data = await response.json();
+        addLog(data.success ? successMessage : `Failed: ${data.message}`);
         updateStatus();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
 
-        async function updateStatus() {
-            try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                
-                // WebSocket status
-                updateServiceStatus('ws', data.webSocket.isConnected, data.webSocket.url);
-                
-                // TCP status
-                updateServiceStatus('tcp', data.tcp.isRunning, 
-                    data.tcp.isRunning ? `${data.tcp.host}:${data.tcp.port}` : '-');
-                
-                // UDP status
-                updateServiceStatus('udp', data.udp.isRunning, 
-                    data.udp.isRunning ? `${data.udp.host}:${data.udp.port}` : '-');
-                
-                // Statistics
-                document.getElementById('messagesReceived').textContent = data.statistics.totalReceived;
-                document.getElementById('messagesConverted').textContent = data.statistics.totalConverted;
-                document.getElementById('messagesBroadcast').textContent = data.statistics.totalBroadcast;
-                document.getElementById('errors').textContent = data.statistics.errors;
-                
-                // Current config
-                document.getElementById('currentNorth').textContent = data.config.north;
-                document.getElementById('currentSouth').textContent = data.config.south;
-                document.getElementById('currentEast').textContent = data.config.east;
-                document.getElementById('currentWest').textContent = data.config.west;
-                
-                // Pre-fill form
-                document.getElementById('north').value = data.config.north;
-                document.getElementById('south').value = data.config.south;
-                document.getElementById('east').value = data.config.east;
-                document.getElementById('west').value = data.config.west;
-                
-            } catch (error) {
-                console.error('Failed to update status:', error);
-            }
-        }
+// ===== Config =====
+async function updateConfig(event) {
+    event.preventDefault();
+    const config = {
+        north: parseFloat(document.getElementById('north').value),
+        south: parseFloat(document.getElementById('south').value),
+        east: parseFloat(document.getElementById('east').value),
+        west: parseFloat(document.getElementById('west').value)
+    };
+    try {
+        const response = await fetch('/api/config/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+        const data = await response.json();
+        addLog(data.success ? 'Configuration updated and WebSocket reconnected' : `Failed: ${data.message}`);
+        updateStatus();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
 
-        function updateServiceStatus(service, isRunning, address) {
-            const indicator = document.getElementById(`${service}Indicator`);
-            const status = document.getElementById(`${service}Status`);
-            const addressEl = document.getElementById(`${service}Address`) || document.getElementById(`${service}Url`);
-            const startBtn = document.getElementById(`${service}StartBtn`);
-            const stopBtn = document.getElementById(`${service}StopBtn`);
-            
-            if (isRunning) {
-                indicator.className = 'status-indicator status-connected';
-                status.textContent = service === 'ws' ? 'Connected' : 'Running';
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-            } else {
-                indicator.className = 'status-indicator status-disconnected';
-                status.textContent = service === 'ws' ? 'Disconnected' : 'Stopped';
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-            }
-            
-            if (addressEl) {
-                addressEl.textContent = address;
-            }
-        }
+// ===== Units =====
+async function setUnits(units) {
+    currentUnits = units;
+    localStorage.setItem('ais-units', units);
+    applyUnitsToggle();
+    try { await fetch('/api/settings/units', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ units }) }); } catch {}
+    loadTrackingStatus();
+}
 
-        async function startWebSocket() {
-            await controlService('/api/websocket/start', 'WebSocket connection started');
-        }
+function applyUnitsToggle() {
+    const btns = document.querySelectorAll('#unitsToggle button');
+    btns[0].className = currentUnits === 'nautical' ? 'active' : '';
+    btns[1].className = currentUnits === 'metric' ? 'active' : '';
+}
 
-        async function stopWebSocket() {
-            await controlService('/api/websocket/stop', 'WebSocket connection stopped');
-        }
+// ===== Tracking =====
+async function startTracking() {
+    const query = document.getElementById('trackingInput').value.trim();
+    if (!query) return;
+    try {
+        const response = await fetch('/api/tracking/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+        const data = await response.json();
+        if (data.success) { addLog(`🎯 ${data.message}`); document.getElementById('trackingInput').value = ''; }
+        else addLog(`Failed: ${data.message}`);
+        loadTrackingStatus();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
 
-        async function startTcp() {
-            await controlService('/api/tcp/start', 'TCP server started');
-        }
+async function stopTracking() {
+    try {
+        await fetch('/api/tracking/stop', { method: 'POST' });
+        addLog('Tracking stopped');
+        loadTrackingStatus();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
 
-        async function stopTcp() {
-            await controlService('/api/tcp/stop', 'TCP server stopped');
-        }
+async function loadTrackingStatus() {
+    try {
+        const response = await fetch('/api/tracking/status');
+        const data = await response.json();
+        applyTrackingData(data);
+    } catch {}
+}
 
-        async function startUdp() {
-            await controlService('/api/udp/start', 'UDP server started');
-        }
+function applyTrackingData(data) {
+    const card = document.getElementById('trackingCard');
+    const info = document.getElementById('trackingInfo');
+    const pending = document.getElementById('trackingPending');
+    const stopBtn = document.getElementById('stopTrackBtn');
 
-        async function stopUdp() {
-            await controlService('/api/udp/stop', 'UDP server stopped');
-        }
+    if (!data.isTracking) {
+        card.className = 'card tracking-card';
+        info.style.display = 'none';
+        pending.style.display = 'none';
+        stopBtn.disabled = true;
+        return;
+    }
 
-        async function controlService(endpoint, successMessage) {
-            try {
-                const response = await fetch(endpoint, { method: 'POST' });
-                const data = await response.json();
-                
-                if (data.success) {
-                    addLog(successMessage);
-                } else {
-                    addLog(`Failed: ${data.message}`);
-                }
-                
-                // Immediately update status
-                updateStatus();
-            } catch (error) {
-                addLog(`Error: ${error.message}`);
-            }
-        }
+    stopBtn.disabled = false;
+    if (data.isPending) {
+        card.className = 'card tracking-card tracking-pending';
+        info.style.display = 'none';
+        pending.style.display = 'block';
+        return;
+    }
 
-        async function updateConfig(event) {
-            event.preventDefault();
-            
-            const config = {
-                north: parseFloat(document.getElementById('north').value),
-                south: parseFloat(document.getElementById('south').value),
-                east: parseFloat(document.getElementById('east').value),
-                west: parseFloat(document.getElementById('west').value)
-            };
-            
-            try {
-                const response = await fetch('/api/config/update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    addLog('Configuration updated and WebSocket reconnected');
-                } else {
-                    addLog(`Failed to update config: ${data.message}`);
-                }
-                
-                // Update status
-                updateStatus();
-            } catch (error) {
-                addLog(`Error updating config: ${error.message}`);
-            }
-        }
+    card.className = 'card tracking-card tracking-active';
+    pending.style.display = 'none';
+    info.style.display = 'block';
+    document.getElementById('trackVessel').textContent = `${data.vesselName || 'Unknown'} [${data.mmsi}]`;
+    document.getElementById('trackSpeed').textContent = data.currentSpeed || '-';
+    document.getElementById('trackAvgSpeed').textContent = data.averageSpeed || '-';
+    document.getElementById('trackDistance').textContent = data.distance || '-';
+    document.getElementById('trackPoints').textContent = data.trackPoints || 0;
+    if (data.lastPosition) {
+        document.getElementById('trackPosition').textContent = `${data.lastPosition.latitude.toFixed(4)}, ${data.lastPosition.longitude.toFixed(4)}`;
+    }
+    if (data.startTime) {
+        const elapsed = Date.now() - new Date(data.startTime).getTime();
+        const mins = Math.floor(elapsed / 60000);
+        const hrs = Math.floor(mins / 60);
+        document.getElementById('trackDuration').textContent = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+    }
+}
 
-        function addLog(message) {
-            const logContainer = document.getElementById('logContainer');
-            const timestamp = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `[${timestamp}] ${message}`;
-            
-            // Remove "Waiting for activity..." if it exists
-            if (logContainer.firstChild && logContainer.firstChild.textContent.includes('Waiting for activity')) {
-                logContainer.innerHTML = '';
-            }
-            
-            logContainer.insertBefore(entry, logContainer.firstChild);
-            
-            // Keep only last 50 entries
-            while (logContainer.children.length > 50) {
-                logContainer.removeChild(logContainer.lastChild);
-            }
+async function exportTrack(format) {
+    try {
+        const response = await fetch(`/api/export/${format}`);
+        if (response.headers.get('content-type')?.includes('json')) {
+            const data = await response.json();
+            addLog(`Export failed: ${data.message}`);
+            return;
         }
-    </script>
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `track.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        addLog(`📥 Track exported as ${format.toUpperCase()}`);
+    } catch (error) { addLog(`Export error: ${error.message}`); }
+}
+
+// ===== Alerts =====
+async function addAlert() {
+    const query = document.getElementById('alertInput').value.trim();
+    if (!query) return;
+    try {
+        const response = await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+        const data = await response.json();
+        if (data.success) { addLog(`🔔 ${data.message}`); document.getElementById('alertInput').value = ''; }
+        else addLog(`Failed: ${data.message}`);
+        loadAlerts();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
+
+async function removeAlert(mmsi) {
+    try {
+        await fetch(`/api/alerts/${mmsi}`, { method: 'DELETE' });
+        addLog('Alert removed');
+        loadAlerts();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
+
+async function clearAlerts() {
+    try {
+        await fetch('/api/alerts', { method: 'DELETE' });
+        addLog('All alerts cleared');
+        loadAlerts();
+    } catch (error) { addLog(`Error: ${error.message}`); }
+}
+
+async function loadAlerts() {
+    try {
+        const response = await fetch('/api/alerts');
+        const data = await response.json();
+        const list = document.getElementById('alertList');
+        const noAlerts = document.getElementById('noAlerts');
+        if (!data.alerts || data.alerts.length === 0) {
+            list.innerHTML = '<li class="targets-empty" id="noAlerts">No alerts configured</li>';
+            return;
+        }
+        list.innerHTML = data.alerts.map(a => `
+            <li class="alert-item">
+                <div><div class="alert-info">🔔 ${a.name || 'Unknown'}</div><div class="alert-mmsi">MMSI: ${a.mmsi}</div></div>
+                <button class="btn btn-danger btn-sm" onclick="removeAlert(${a.mmsi})">Remove</button>
+            </li>
+        `).join('');
+    } catch {}
+}
+
+// ===== Targets =====
+let targetsData = [];
+
+async function loadTargets() {
+    try {
+        const response = await fetch('/api/tracking/targets');
+        const data = await response.json();
+        targetsData = data.targets || [];
+        document.getElementById('targetsCount').textContent = targetsData.length > 0 ? `(${targetsData.length})` : '';
+        renderTargets();
+    } catch {}
+}
+
+function sortTargets(field) {
+    if (targetsSortField === field) targetsSortDesc = !targetsSortDesc;
+    else { targetsSortField = field; targetsSortDesc = field === 'lastHeard'; }
+    renderTargets();
+}
+
+function renderTargets() {
+    const tbody = document.getElementById('targetsBody');
+    if (targetsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="targets-empty">No vessels heard yet</td></tr>';
+        return;
+    }
+    const sorted = [...targetsData].sort((a, b) => {
+        let va = a[targetsSortField], vb = b[targetsSortField];
+        if (targetsSortField === 'lastHeard') { va = new Date(va); vb = new Date(vb); }
+        if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+        return targetsSortDesc ? (va > vb ? -1 : 1) : (va < vb ? -1 : 1);
+    });
+    tbody.innerHTML = sorted.map(t => {
+        const ago = timeAgo(new Date(t.lastHeard));
+        return `<tr>
+            <td>${t.mmsi}</td>
+            <td>${t.name}</td>
+            <td title="${new Date(t.lastHeard).toLocaleString()}">${ago}</td>
+            <td class="actions">
+                <button class="btn btn-primary btn-sm" onclick="quickTrack(${t.mmsi}, '${(t.name||'').replace(/'/g,"\\'")}')">Track</button>
+                <button class="btn btn-warning btn-sm" onclick="quickAlert(${t.mmsi})">Alert</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function quickTrack(mmsi, name) {
+    document.getElementById('trackingInput').value = mmsi.toString();
+    startTracking();
+}
+
+function quickAlert(mmsi) {
+    document.getElementById('alertInput').value = mmsi.toString();
+    addAlert();
+}
+
+function timeAgo(date) {
+    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (secs < 60) return `${secs}s ago`;
+    if (secs < 3600) return `${Math.floor(secs/60)}m ago`;
+    if (secs < 86400) return `${Math.floor(secs/3600)}h ago`;
+    return `${Math.floor(secs/86400)}d ago`;
+}
+
+// ===== Toast =====
+function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type || 'info'}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 5000);
+}
+
+// ===== Activity Log =====
+function addLog(message, isAlert) {
+    const logContainer = document.getElementById('logContainer');
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = 'log-entry' + (isAlert ? ' alert-entry' : '');
+    entry.textContent = `[${timestamp}] ${message}`;
+    if (logContainer.firstChild && logContainer.firstChild.textContent.includes('Waiting for activity')) {
+        logContainer.innerHTML = '';
+    }
+    logContainer.insertBefore(entry, logContainer.firstChild);
+    while (logContainer.children.length > 100) logContainer.removeChild(logContainer.lastChild);
+}
+</script>
 </body>
 </html>
