@@ -67,7 +67,7 @@
         .tracking-stat .lbl { font-size: 11px; color: #666; text-transform: uppercase; }
         /* Targets table */
         .targets-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .targets-table th { background: #1e3c72; color: white; padding: 10px 12px; text-align: left; cursor: pointer; user-select: none; }
+        .targets-table th { background: #1e3c72; color: white; padding: 10px 12px; text-align: left; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 1; }
         .targets-table th:hover { background: #2a5298; }
         .targets-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
         .targets-table tr:hover { background: #f0f7ff; }
@@ -213,7 +213,7 @@
         <!-- Targets (vessels heard) -->
         <div class="card">
             <h2>🚢 Vessels Heard <span id="targetsCount" style="font-size:13px; color:#666; font-weight:normal;"></span></h2>
-            <div style="overflow-x: auto;">
+            <div style="overflow-x: auto; max-height: 740px; overflow-y: auto;">
                 <table class="targets-table" id="targetsTable">
                     <thead>
                         <tr>
