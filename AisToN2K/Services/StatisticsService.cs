@@ -108,6 +108,22 @@ namespace AisToN2K.Services
             };
         }
 
+        /// <summary>
+        /// Get a snapshot of message type counts for API consumers.
+        /// </summary>
+        public Dictionary<int, int> GetMessageTypeCounts()
+        {
+            return new Dictionary<int, int>(_messageTypesCounts);
+        }
+
+        /// <summary>
+        /// Get the human-readable name for a message type (public accessor).
+        /// </summary>
+        public static string GetMessageTypeDisplayName(int messageType)
+        {
+            return GetMessageTypeName(messageType);
+        }
+
         public void PrintSummary()
         {
             ReportStatistics(null);
