@@ -242,7 +242,7 @@ namespace AisToN2K
             bool servicesDisposed = false;
             lifetime.ApplicationStopping.Register(() =>
             {
-                // Flush tracking/alert stores
+                // Flush vessel registry to disk on shutdown
                 try { _trackingService?.FlushRegistry(); } catch { }
 
                 if (!servicesDisposed && _serviceManager != null)

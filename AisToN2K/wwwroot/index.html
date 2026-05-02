@@ -508,12 +508,16 @@ function applyTrackingData(data) {
     document.getElementById('trackPoints').textContent = data.trackPoints || 0;
     if (data.lastPosition) {
         document.getElementById('trackPosition').textContent = `${data.lastPosition.latitude.toFixed(4)}, ${data.lastPosition.longitude.toFixed(4)}`;
+    } else {
+        document.getElementById('trackPosition').textContent = '-';
     }
     if (data.startTime) {
         const elapsed = Date.now() - new Date(data.startTime).getTime();
         const mins = Math.floor(elapsed / 60000);
         const hrs = Math.floor(mins / 60);
         document.getElementById('trackDuration').textContent = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+    } else {
+        document.getElementById('trackDuration').textContent = '-';
     }
 }
 
