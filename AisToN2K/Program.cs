@@ -1,5 +1,6 @@
 using AisToN2K.Configuration;
 using AisToN2K.Services;
+using AisToN2K.TUI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,7 @@ namespace AisToN2K
         private static ServiceManager? _serviceManager;
         private static AppConfig? _config;
         private static bool _debugMode = false;
+        private static string? _logPathOverride = null;
         
         static async Task Main(string[] args)
         {
@@ -25,17 +27,33 @@ namespace AisToN2K
             
             _debugMode = args.Contains("--debug") || args.Contains("-d");
             bool webMode = args.Contains("--web") || args.Contains("-w");
+            bool headlessMode = args.Contains("--headless");
+            bool noWs = args.Contains("--no-ws");
+            bool noTcp = args.Contains("--no-tcp");
+            bool noUdp = args.Contains("--no-udp");
             
-            Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
-            Console.WriteLine("===============================");
+            // Parse --log-path <directory>
+            var logPathIdx = Array.IndexOf(args, "--log-path");
+            if (logPathIdx >= 0 && logPathIdx < args.Length - 1)
+            {
+                _logPathOverride = args[logPathIdx + 1];
+            }
             
             if (webMode)
             {
+                Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
+                Console.WriteLine("===============================");
                 await RunWebModeAsync(args);
+            }
+            else if (headlessMode)
+            {
+                Console.WriteLine("🚢 AIS to NMEA 0183 Converter");
+                Console.WriteLine("===============================");
+                await RunConsoleModeAsync(args);
             }
             else
             {
-                await RunConsoleModeAsync(args);
+                await RunTuiModeAsync(args, autoStartWs: !noWs, autoStartTcp: !noTcp, autoStartUdp: !noUdp);
             }
         }
         
@@ -47,12 +65,24 @@ namespace AisToN2K
             Console.WriteLine("Usage: dotnet run [options]");
             Console.WriteLine();
             Console.WriteLine("Options:");
-            Console.WriteLine("  -w, --web      Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
-            Console.WriteLine("  -d, --debug    Enable debug mode (shows all received and broadcast messages)");
-            Console.WriteLine("  -h, --help     Show this help message");
+            Console.WriteLine("  -w, --web         Enable web UI mode (default: http://localhost:8080 or AIS_WEB_PORT env)");
+            Console.WriteLine("  -d, --debug       Enable debug mode (shows all received and broadcast messages)");
+            Console.WriteLine("  --log-path <dir>  Override log file directory (default: ./log/ or ApplicationLogging.LogPath)");
+            Console.WriteLine("  -h, --help        Show this help message");
+            Console.WriteLine("  --headless        Run in headless console mode (no TUI, log streamed to stdout)");
+            Console.WriteLine("  --no-ws           Don't auto-start WebSocket connection");
+            Console.WriteLine("  --no-tcp          Don't auto-start TCP server");
+            Console.WriteLine("  --no-udp          Don't auto-start UDP server");
+            Console.WriteLine("  --public, --external  Bind web UI to 0.0.0.0 for external subnet access (use with --web)");
             Console.WriteLine();
-            Console.WriteLine("Console mode (default):");
+            Console.WriteLine("TUI mode (default):");
+            Console.WriteLine("  • Interactive terminal UI with command input");
+            Console.WriteLine("  • Type / to see available commands");
+            Console.WriteLine("  • Ctrl+C twice to exit");
+            Console.WriteLine();
+            Console.WriteLine("Headless mode:");
             Console.WriteLine("  • Auto-starts all configured services");
+            Console.WriteLine("  • Log streamed to stdout");
             Console.WriteLine("  • Runs until Ctrl+C is pressed");
             Console.WriteLine();
             Console.WriteLine("Web mode:");
@@ -69,10 +99,48 @@ namespace AisToN2K
             Console.WriteLine();
         }
 
+        private static async Task RunTuiModeAsync(string[] args, bool autoStartWs = true, bool autoStartTcp = true, bool autoStartUdp = true)
+        {
+            try
+            {
+                // Load configuration
+                var config = await LoadConfigurationSilentAsync();
+                if (config == null)
+                {
+                    // Fall back to console error
+                    Console.WriteLine("❌ Failed to load configuration. Run with --headless to see details.");
+                    return;
+                }
+
+                var tuiApp = new TuiApp(config, _debugMode, autoStartWs, autoStartTcp, autoStartUdp, _logPathOverride);
+                await tuiApp.RunAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Fatal error: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+        }
+
         private static int GetConfiguredWebPortOrDefault()
         {
             var env = Environment.GetEnvironmentVariable("AIS_WEB_PORT");
             return (!string.IsNullOrEmpty(env) && int.TryParse(env, out var p) && p > 0 && p < 65536) ? p : 8080;
+        }
+
+        private static string GetLocalIpAddress()
+        {
+            try
+            {
+                var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !System.Net.IPAddress.IsLoopback(ip))
+                        return ip.ToString();
+                }
+            }
+            catch { }
+            return "localhost";
         }
 
         private static bool IsPortInUse(int port)
@@ -92,6 +160,7 @@ namespace AisToN2K
 
         private static async Task RunWebModeAsync(string[] args)
         {
+            bool externalAccess = args.Contains("--public") || args.Contains("--external");
             // Compute project root from build output (bin/Debug/net9.0) for static file serving
             var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -113,7 +182,8 @@ namespace AisToN2K
                 Console.WriteLine($"❌ Web UI port {webPort} is already in use. Set AIS_WEB_PORT to a free port or stop conflicting process.");
                 Environment.Exit(1);
             }
-            builder.WebHost.UseUrls($"http://localhost:{webPort}");
+            var bindHost = externalAccess ? "0.0.0.0" : "localhost";
+            builder.WebHost.UseUrls($"http://{bindHost}:{webPort}");
             
             // Load configuration
             var config = await LoadConfigurationAsync();
@@ -124,7 +194,7 @@ namespace AisToN2K
             _config = config;
             
             // Initialize ServiceManager
-            _serviceManager = new ServiceManager(_config, _debugMode);
+            _serviceManager = new ServiceManager(_config, _debugMode, _logPathOverride);
             await _serviceManager.InitializeAsync();
             
             // Add services to the container
@@ -265,7 +335,12 @@ namespace AisToN2K
             });
             
             Console.WriteLine($"✅ Web UI mode enabled");
-            Console.WriteLine($"🌐 Open browser to: http://localhost:{GetConfiguredWebPortOrDefault()}");
+            var displayHost = externalAccess ? GetLocalIpAddress() : "localhost";
+            Console.WriteLine($"🌐 Open browser to: http://{displayHost}:{GetConfiguredWebPortOrDefault()}");
+            if (externalAccess)
+            {
+                Console.WriteLine("⚠️ External access enabled - ensure you trust the network and have set any necessary firewall rules.");
+            }
             Console.WriteLine($"📱 Press Ctrl+C to stop...");
             
             await app.RunAsync();
@@ -289,7 +364,7 @@ namespace AisToN2K
                 _config = config;
 
                 // Initialize ServiceManager
-                _serviceManager = new ServiceManager(_config, _debugMode);
+                _serviceManager = new ServiceManager(_config, _debugMode, _logPathOverride);
                 await _serviceManager.InitializeAsync();
 
                 // Start all services automatically in console mode
@@ -372,6 +447,44 @@ namespace AisToN2K
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Failed to load configuration: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Load configuration without Console output (for TUI mode where Terminal.Gui owns the screen).
+        /// </summary>
+        private static async Task<AppConfig?> LoadConfigurationSilentAsync()
+        {
+            try
+            {
+                var basePath = AppContext.BaseDirectory;
+                
+                var configBuilder = new ConfigurationBuilder()
+                    .SetBasePath(basePath)
+                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                    .AddUserSecrets("ais-to-n2k-secrets")
+                    .AddEnvironmentVariables();
+
+                var configuration = configBuilder.Build();
+                var config = new AppConfig();
+                configuration.Bind(config);
+
+                var secureConfigService = new SecureConfigurationService(configuration);
+                config.ApiKey = secureConfigService.GetApiKey();
+
+                // Don't fail on missing API key — TUI will show the error in the command pane
+                // Validate configuration
+                var validationErrors = config.Validate();
+                if (validationErrors.Any())
+                {
+                    // Still return config — TUI can display errors
+                }
+
+                return config;
+            }
+            catch (Exception)
+            {
                 return null;
             }
         }

@@ -8,13 +8,15 @@ This application implements a simplified real-time AIS monitoring system based o
 
 ## Features
 
+- **🖥️ Terminal UI**: Interactive TUI with slash commands, real-time service status, and vessel tracking
 - **🌐 Web UI**: Modern web interface for service management and monitoring
 - **Real-time AIS Streaming**: WebSocket connection to AIS Stream for live vessel data
 - **Geographic Filtering**: Configurable bounding box for area-specific monitoring
 - **NMEA 0183 Conversion**: Converts AIS data to industry-standard NMEA format
 - **Network Broadcasting**: TCP and UDP servers for OpenCPN and other marine software
+- **🚢 Vessel Tracking**: Track individual vessels with distance, speed, and route export (GPX/KML)
 - **Secure Configuration**: Multiple secure methods for API key storage
-- **Dual Mode Operation**: Console mode (auto-start) or Web UI mode (manual control)
+- **Triple Mode Operation**: TUI mode (default), Web UI mode, or headless console mode
 
 ## Architecture
 
@@ -24,7 +26,10 @@ This application implements a simplified real-time AIS monitoring system based o
 - **AisWebSocketService**: Real-time WebSocket streaming with geographic filtering
 - **Nmea0183Converter**: Converts AIS data to NMEA 0183 format
 - **TcpServer/UdpServer**: Network broadcasting for marine navigation software
+- **VesselTrackingService**: Per-vessel position tracking with distance/speed calculations
+- **GpxExporter/KmlExporter**: Track export to standard geographic file formats
 - **SecureConfigurationService**: Secure API key management
+- **TuiApp**: Terminal UI with slash commands, status panel, log pane, and tracking bar
 - **Web UI**: Browser-based control panel for service management
 
 ## Prerequisites
@@ -149,7 +154,40 @@ Only use `appsettings.json` for non-sensitive defaults.
 
 ## Usage
 
-### Web UI Mode (Recommended)
+### TUI Mode (Default)
+
+Launch the interactive terminal UI:
+
+```bash
+dotnet run
+```
+
+**TUI Features:**
+- 🎛️ Slash commands (`/connect`, `/tcp start`, `/udp start`, etc.)
+- 📊 Real-time service status panel (WebSocket, TCP, UDP)
+- 📝 Scrolling log pane with all program output
+- 🚢 Vessel tracking with distance, speed, and route display
+- 📤 Export tracks to GPX and KML formats
+- ⌨️ Command autocomplete — type `/` to see all commands
+- 🔄 Up/Down arrow command history
+
+**TUI Commands:**
+| Command | Description |
+|---------|-------------|
+| `/help [cmd]` | Show help or command details |
+| `/connect` / `/disconnect` | Control WebSocket connection |
+| `/tcp start\|stop` | Control TCP server |
+| `/udp start\|stop` | Control UDP server |
+| `/config show\|bbox\|url` | View or update configuration |
+| `/track <vessel>` | Track a vessel by name or MMSI |
+| `/track stop` | Stop tracking |
+| `/units knots\|metric` | Switch display units |
+| `/export gpx\|kml [path]` | Export track to file |
+| `/status` | Show service status summary |
+| `/clear` | Clear log pane |
+| `/quit` | Exit (or Ctrl+C twice) |
+
+### Web UI Mode
 
 Launch the web interface for easy service management:
 
@@ -168,16 +206,17 @@ Then open your browser to **http://localhost:5000**
 
 ![Web UI Screenshot](https://github.com/user-attachments/assets/a8e2b630-3cf8-4cfc-a710-8559cb6bd623)
 
-### Console Mode (Auto-Start)
+### Headless Console Mode
 
-Run the application in traditional console mode with automatic service startup:
+Run the application in headless mode with automatic service startup (the previous default):
 
 ```bash
-dotnet run
+dotnet run -- --headless
 ```
 
-**Console Mode Features:**
+**Headless Mode Features:**
 - ✅ Auto-starts all configured services (WebSocket, TCP, UDP)
+- ✅ Log streamed to stdout
 - ✅ Runs until Ctrl+C is pressed
 - ✅ Perfect for headless servers and automation
 

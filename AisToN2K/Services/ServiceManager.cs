@@ -1,4 +1,5 @@
 using AisToN2K.Configuration;
+using AisToN2K.Interfaces;
 using AisToN2K.Models;
 
 namespace AisToN2K.Services
@@ -16,7 +17,9 @@ namespace AisToN2K.Services
         private TcpServer? _tcpServer;
         private UdpServer? _udpServer;
         private StatisticsService? _statistics;
+        private DebugFileLogger? _fileLogger;
         private readonly bool _debugMode;
+        private readonly string? _logPathOverride;
         private bool _disposed = false;
 
         public bool IsWebSocketConnected => _webSocketService?.IsConnected ?? false;
@@ -24,13 +27,66 @@ namespace AisToN2K.Services
         public bool IsUdpServerRunning { get; private set; }
         public AppConfig CurrentConfig => _config;
         public StatisticsService? Statistics => _statistics;
+        public DebugFileLogger? FileLogger => _fileLogger;
+
+        /// <summary>
+        /// Log output target. When set, Console.WriteLines are redirected here (for TUI mode).
+        /// </summary>
+        private ILogOutput? _logOutput;
+        public ILogOutput? LogOutput
+        {
+            get => _logOutput;
+            set
+            {
+                _logOutput = value;
+                if (_statistics != null)
+                    _statistics.LogOutput = value;
+                if (_webSocketService != null)
+                    _webSocketService.LogOutput = value;
+                if (_tcpServer != null)
+                    _tcpServer.LogOutput = value;
+                if (_udpServer != null)
+                    _udpServer.LogOutput = value;
+                if (_converter != null)
+                    _converter.LogOutput = value;
+            }
+        }
 
         public event EventHandler<string>? StatusChanged;
 
-        public ServiceManager(AppConfig config, bool debugMode = false)
+        /// <summary>
+        /// Fired when vessel data is received, before NMEA conversion.
+        /// Used by the TUI to feed the VesselTrackingService.
+        /// </summary>
+        public event EventHandler<AisData>? VesselDataForTracking;
+
+        /// <summary>
+        /// Optional delegate to look up vessel names by MMSI from the persistent registry.
+        /// Used as fallback when AIS messages don't include a vessel name.
+        /// </summary>
+        public Func<int, string?>? VesselNameLookup { get; set; }
+
+        public ServiceManager(AppConfig config, bool debugMode = false, string? logPathOverride = null)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _debugMode = debugMode;
+            _logPathOverride = logPathOverride;
+        }
+
+        private void Log(string message)
+        {
+            if (_logOutput != null)
+                _logOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
+        }
+
+        private void Log(string message, int? mmsi)
+        {
+            if (mmsi.HasValue && _logOutput != null)
+                _logOutput.WriteLineWithMmsi(message, mmsi.Value);
+            else
+                Log(message);
         }
 
         public async Task InitializeAsync()
@@ -40,6 +96,15 @@ namespace AisToN2K.Services
 
             // Initialize NMEA converter
             _converter = new Nmea0183Converter(_debugMode);
+            _converter.LogOutput = _logOutput;
+
+            // Initialize debug file logger (only active in debug mode)
+            var logPath = _logPathOverride ?? _config.ApplicationLogging.LogPath ?? "";
+            _fileLogger = new DebugFileLogger(logPath, _debugMode);
+            if (_debugMode)
+            {
+                Log($"📁 Debug file logging to: {Path.GetFullPath(_fileLogger.LogDirectory)}");
+            }
 
             StatusChanged?.Invoke(this, "Services initialized");
         }
@@ -55,6 +120,9 @@ namespace AisToN2K.Services
             {
                 // Initialize WebSocket service
                 _webSocketService = new AisWebSocketService(_config.WebSocketUrl, _config.ApiKey, _debugMode);
+                _webSocketService.LogOutput = _logOutput;
+                _webSocketService.FileLogger = _fileLogger;
+                _webSocketService.VesselNameLookup = VesselNameLookup;
                 _webSocketService.VesselDataReceived += OnVesselDataReceived;
 
                 var boundingBox = new double[]
@@ -124,6 +192,7 @@ namespace AisToN2K.Services
             try
             {
                 _tcpServer = new TcpServer(_config.Network.Tcp.Host, _config.Network.Tcp.Port, _debugMode);
+                _tcpServer.LogOutput = _logOutput;
                 var started = await _tcpServer.StartAsync();
                 IsTcpServerRunning = started;
                 if (started)
@@ -182,6 +251,7 @@ namespace AisToN2K.Services
             try
             {
                 _udpServer = new UdpServer(_config.Network.Udp.Host, _config.Network.Udp.Port);
+                _udpServer.LogOutput = _logOutput;
                 var started = await _udpServer.StartAsync();
                 IsUdpServerRunning = started;
                 if (started)
@@ -244,24 +314,33 @@ namespace AisToN2K.Services
         {
             try
             {
+                // Fire tracking event for TUI vessel tracking
+                VesselDataForTracking?.Invoke(this, vesselData);
+
                 // Extract vessel information from AisData object
-                string vesselName = vesselData.VesselName ?? vesselData.Mmsi.ToString();
+                string? resolvedName = vesselData.VesselName ?? VesselNameLookup?.Invoke(vesselData.Mmsi);
+                string displayLabel = resolvedName != null
+                    ? $"{resolvedName} [{vesselData.Mmsi}]"
+                    : $"[{vesselData.Mmsi}]";
                 double latitude = vesselData.Latitude;
                 double longitude = vesselData.Longitude;
                 int messageType = vesselData.MessageType;
 
                 _statistics?.IncrementMessageReceived(messageType);
 
+                // Debug file logging for received WebSocket data
+                _fileLogger?.LogWebSocket(messageType, vesselData.Mmsi, resolvedName ?? vesselData.Mmsi.ToString(), latitude, longitude);
+
                 // Debug logging for received vessel data
                 if (_debugMode)
                 {
-                    Console.WriteLine($"📥 RX: Type {messageType} | MMSI: {vesselData.Mmsi} | {vesselName} | {latitude:F4}, {longitude:F4}");
+                    Log($"📥 RX: Type {messageType} | {displayLabel} | {latitude:F4}, {longitude:F4}", vesselData.Mmsi);
                 }
 
                 // Show occasional progress indicators when not in debug mode
                 if (!_debugMode && _statistics != null && _statistics.TotalMessagesReceived % 10 == 0)
                 {
-                    Console.WriteLine($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {vesselName})");
+                    Log($"📊 Processed {_statistics.TotalMessagesReceived} messages (Type {messageType}: {displayLabel})", vesselData.Mmsi);
                 }
 
                 // Convert to NMEA 0183
@@ -270,7 +349,7 @@ namespace AisToN2K.Services
                 {
                     if (_debugMode)
                     {
-                        Console.WriteLine($"⚠️ Failed to convert message type {messageType}");
+                        Log($"⚠️ Failed to convert message type {messageType}");
                     }
                     _statistics?.IncrementError();
                     return;
@@ -281,13 +360,13 @@ namespace AisToN2K.Services
                 // Debug logging for converted NMEA message
                 if (_debugMode)
                 {
-                    Console.WriteLine($"📤 TX: {nmeaMessage.Trim()}");
+                    Log($"📤 TX: {nmeaMessage.Trim()}", vesselData.Mmsi);
                 }
 
                 // Log message details if enabled
                 if (_config.ApplicationLogging.LogNmeaMessages)
                 {
-                    _statistics?.LogMessageDetails(messageType, vesselName, latitude, longitude, nmeaMessage);
+                    _statistics?.LogMessageDetails(messageType, resolvedName ?? vesselData.Mmsi.ToString(), latitude, longitude, nmeaMessage);
                 }
 
                 // Broadcast via TCP
@@ -297,6 +376,8 @@ namespace AisToN2K.Services
                     if (tcpSent)
                     {
                         _statistics?.IncrementMessageBroadcast();
+                        _fileLogger?.LogTcp(vesselData.Mmsi, nmeaMessage);
+                        _fileLogger?.LogTcpRaw(nmeaMessage);
                     }
                 }
 
@@ -307,22 +388,24 @@ namespace AisToN2K.Services
                     if (udpSent)
                     {
                         _statistics?.IncrementMessageBroadcast();
+                        _fileLogger?.LogUdp(vesselData.Mmsi, nmeaMessage);
+                        _fileLogger?.LogUdpRaw(nmeaMessage);
                     }
                 }
             }
             catch (ArgumentException ex)
             {
-                Console.WriteLine($"❌ Error processing vessel data (argument error): {ex.Message}");
+                Log($"❌ Error processing vessel data (argument error): {ex.Message}");
                 _statistics?.IncrementError();
             }
             catch (InvalidOperationException ex)
             {
-                Console.WriteLine($"❌ Error processing vessel data (invalid operation): {ex.Message}");
+                Log($"❌ Error processing vessel data (invalid operation): {ex.Message}");
                 _statistics?.IncrementError();
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
             {
-                Console.WriteLine($"❌ Error processing vessel data: {ex.Message}");
+                Log($"❌ Error processing vessel data: {ex.Message}");
                 _statistics?.IncrementError();
             }
         }
@@ -340,10 +423,11 @@ namespace AisToN2K.Services
                     await StopUdpServerAsync();
 
                     _statistics?.Dispose();
+                    _fileLogger?.Dispose();
                 }
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
-                    Console.WriteLine($"⚠️ Error during ServiceManager disposal: {ex.Message}");
+                    Log($"⚠️ Error during ServiceManager disposal: {ex.Message}");
                 }
                 finally
                 {
@@ -355,24 +439,22 @@ namespace AisToN2K.Services
         public void Dispose()
         {
             // Synchronous dispose - prefer DisposeAsync when possible
-            // This is provided for compatibility with IDisposable pattern
             if (!_disposed)
             {
                 try
                 {
                     _statistics?.PrintSummary();
 
-                    // Use GetAwaiter().GetResult() for synchronous disposal
-                    // Note: This can potentially cause deadlocks in some contexts
                     StopWebSocketAsync().GetAwaiter().GetResult();
                     StopTcpServerAsync().GetAwaiter().GetResult();
                     StopUdpServerAsync().GetAwaiter().GetResult();
 
                     _statistics?.Dispose();
+                    _fileLogger?.Dispose();
                 }
                 catch (Exception ex) when (!(ex is OutOfMemoryException) && !(ex is StackOverflowException))
                 {
-                    Console.WriteLine($"⚠️ Error during ServiceManager disposal: {ex.Message}");
+                    Log($"⚠️ Error during ServiceManager disposal: {ex.Message}");
                 }
                 finally
                 {

@@ -1,3 +1,4 @@
+using AisToN2K.Interfaces;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -12,6 +13,15 @@ namespace AisToN2K.Services
         private IPEndPoint? _broadcastEndpoint;
         private bool _isRunning;
         private bool _disposed;
+
+        public ILogOutput? LogOutput { get; set; }
+        private void Log(string message)
+        {
+            if (LogOutput != null)
+                LogOutput.WriteLine(message);
+            else
+                Console.WriteLine(message);
+        }
 
         // Statistics
         public int TotalMessagesSent { get; private set; }
@@ -44,12 +54,12 @@ namespace AisToN2K.Services
                 _broadcastEndpoint = new IPEndPoint(IPAddress.Parse(_host), _port);
                 _isRunning = true;
 
-                Console.WriteLine($"✅ UDP server started, broadcasting to {_host}:{_port}");
+                Log($"✅ UDP server started, broadcasting to {_host}:{_port}");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Failed to start UDP server: {ex.Message}");
+                Log($"❌ Failed to start UDP server: {ex.Message}");
                 return false;
             }
         }
@@ -73,7 +83,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Failed to send UDP broadcast: {ex.Message}");
+                Log($"⚠️ Failed to send UDP broadcast: {ex.Message}");
                 return false;
             }
         }
@@ -88,7 +98,7 @@ namespace AisToN2K.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Error closing UDP client: {ex.Message}");
+                Log($"⚠️ Error closing UDP client: {ex.Message}");
             }
             finally
             {
@@ -96,7 +106,7 @@ namespace AisToN2K.Services
                 _udpClient = null;
             }
 
-            Console.WriteLine("🛑 UDP server stopped");
+            Log("🛑 UDP server stopped");
         }
 
         public void Dispose()
@@ -111,13 +121,13 @@ namespace AisToN2K.Services
                         var stopTask = StopAsync();
                         if (!stopTask.Wait(1000)) // Wait up to 1 second for graceful shutdown
                         {
-                            Console.WriteLine("⚠️ UDP server dispose timed out");
+                            Log("⚠️ UDP server dispose timed out");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"⚠️ Error during UDP server dispose: {ex.Message}");
+                    Log($"⚠️ Error during UDP server dispose: {ex.Message}");
                 }
                 finally
                 {
