@@ -128,6 +128,21 @@ namespace AisToN2K
             return (!string.IsNullOrEmpty(env) && int.TryParse(env, out var p) && p > 0 && p < 65536) ? p : 8080;
         }
 
+        private static string GetLocalIpAddress()
+        {
+            try
+            {
+                var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        return ip.ToString();
+                }
+            }
+            catch { }
+            return "localhost";
+        }
+
         private static bool IsPortInUse(int port)
         {
             try
@@ -320,7 +335,7 @@ namespace AisToN2K
             });
             
             Console.WriteLine($"✅ Web UI mode enabled");
-            var displayHost = externalAccess ? "0.0.0.0" : "localhost";
+            var displayHost = externalAccess ? GetLocalIpAddress() : "localhost";
             Console.WriteLine($"🌐 Open browser to: http://{displayHost}:{GetConfiguredWebPortOrDefault()}");
             if (externalAccess)
             {
