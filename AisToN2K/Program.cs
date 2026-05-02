@@ -28,7 +28,6 @@ namespace AisToN2K
             _debugMode = args.Contains("--debug") || args.Contains("-d");
             bool webMode = args.Contains("--web") || args.Contains("-w");
             bool headlessMode = args.Contains("--headless");
-            bool externalAccess = args.Contains("--public") || args.Contains("--external");
             bool noWs = args.Contains("--no-ws");
             bool noTcp = args.Contains("--no-tcp");
             bool noUdp = args.Contains("--no-udp");
