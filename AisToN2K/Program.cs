@@ -600,6 +600,25 @@ namespace AisToN2K
                 Console.WriteLine("⚠️ External access enabled - ensure you trust the network and have set any necessary firewall rules.");
             }
             Console.WriteLine($"📱 Press Ctrl+C to stop...");
+
+            // Auto-start services after Kestrel is listening, so the web UI is
+            // available immediately even if the AIS provider is slow/unreachable.
+            bool noWs = args.Contains("--no-ws");
+            bool noTcp = args.Contains("--no-tcp");
+            bool noUdp = args.Contains("--no-udp");
+
+            lifetime.ApplicationStarted.Register(() =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    if (!noTcp && _config.Network.EnableTcp)
+                        await _serviceManager.StartTcpServerAsync();
+                    if (!noUdp && _config.Network.EnableUdp)
+                        await _serviceManager.StartUdpServerAsync();
+                    if (!noWs)
+                        await _serviceManager.StartWebSocketAsync();
+                });
+            });
             
             await app.RunAsync();
         }
